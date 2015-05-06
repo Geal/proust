@@ -1,0 +1,4 @@
+[package]
+name = "proust"
+version = "0.0.1"
+authors = ["Clément Delafargue <clement@delafargue.name>", "Geoffroy Couprie <contact@geoffroycouprie.com>"]
