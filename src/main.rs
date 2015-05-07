@@ -16,6 +16,8 @@ mod network;
 mod responses;
 use responses::response::*;
 
+mod parser;
+mod storage;
 
 fn main() {
   storage::storage_test();
