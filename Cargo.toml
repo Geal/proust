@@ -5,6 +5,6 @@ authors = ["Clément Delafargue <clement@delafargue.name>", "Geoffroy Couprie <c
 
 [dependencies]
 crc = "^0.3.1"
+nom = "~0.3.1"
 
-[dependencies.nom]
-git = "https://github.com/Geal/nom.git"
+git = "https://github.com/Geal/rust-mmap.git"

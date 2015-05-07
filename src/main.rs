@@ -1,5 +1,8 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
+#![feature(core)]
+extern crate core;
+extern crate mmap;
 
 #[macro_use] extern crate nom;
 extern crate crc;
@@ -9,9 +12,10 @@ use parser::request::*;
 
 mod responses;
 use responses::response::*;
-
+mod storage;
 
 fn main() {
-    println!("Hello, world!");
+  storage::storage_test();
+  println!("Hello, world!");
 }
 
