@@ -5,6 +5,7 @@
 extern crate nom;
 
 use parser::primitive::*;
+use parser::metadata::*;
 
 mod parser;
 
