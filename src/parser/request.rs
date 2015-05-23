@@ -12,6 +12,7 @@ use parser::produce::*;
 use parser::fetch::*;
 use parser::offset::*;
 use parser::metadata::*;
+use parser::offset_fetch::*;
 
 #[derive(PartialEq,Debug)]
 pub struct RequestMessage<'a> {
@@ -27,7 +28,8 @@ pub enum RequestPayload<'a> {
     ProduceRequest(ProduceRequest<'a>),
     FetchRequest(FetchRequest<'a>),
     OffsetRequest(OffsetRequest<'a>),
-    MetadataRequest(TopicMetadataRequest<'a>)
+    MetadataRequest(TopicMetadataRequest<'a>),
+    OffsetFetchRequest(OffsetFetchRequest<'a>)
 }
 
 pub fn parse_request_payload<'a>(api_key: i16, input:&'a [u8]) -> IResult<&'a [u8], RequestPayload<'a>> {
@@ -41,7 +43,7 @@ pub fn parse_request_payload<'a>(api_key: i16, input:&'a [u8]) -> IResult<&'a [u
         6  => Error(Code(1)), // UpdateMetadata
         7  => Error(Code(1)), // ControlledShutdown
         8  => Error(Code(1)), // OffsetCommit
-        9  => Error(Code(1)), // OffsetFetch
+        9  => map!(input, offset_fetch_request, |p| { RequestPayload::OffsetFetchRequest(p) }),
         10 => Error(Code(1)), // ConsumerMetadata
         11 => Error(Code(1)), // JoinGroup
         12 => Error(Code(1)), // Heartbeat
