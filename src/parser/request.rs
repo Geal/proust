@@ -51,13 +51,8 @@ pub fn parse_request_payload<'a>(api_version: i16, api_key: i16, input:&'a [u8])
         7  => Error(Code(1)), // ControlledShutdown
 
         8  => {
-          // ToDo move it back to parser::offset_commit
-          match api_version {
-            0 => Error(Code(1)),
-            1 => Error(Code(1)),
-            2 => map!(input, offset_commit_request_v2, |p| { RequestPayload::OffsetCommitRequest(p) }),
-            _ => Error(Code(2))
-          }
+           let pp = |i| { offset_commit_request(i, api_version) };
+           map!(input, pp, |p| { RequestPayload::OffsetCommitRequest(p) })
         }
         9  => map!(input, offset_fetch_request, |p| { RequestPayload::OffsetFetchRequest(p) }),
         10 => map!(input, consumer_metadata_request, |p| { RequestPayload::ConsumerMetadataRequest(p) }),
