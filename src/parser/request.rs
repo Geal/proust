@@ -12,6 +12,7 @@ use parser::produce::*;
 use parser::fetch::*;
 use parser::offset::*;
 use parser::metadata::*;
+use parser::offset_commit::*;
 use parser::offset_fetch::*;
 
 #[derive(PartialEq,Debug)]
@@ -29,10 +30,11 @@ pub enum RequestPayload<'a> {
     FetchRequest(FetchRequest<'a>),
     OffsetRequest(OffsetRequest<'a>),
     MetadataRequest(TopicMetadataRequest<'a>),
+    OffsetCommitRequest(OffsetCommitRequest<'a>),
     OffsetFetchRequest(OffsetFetchRequest<'a>)
 }
 
-pub fn parse_request_payload<'a>(api_key: i16, input:&'a [u8]) -> IResult<&'a [u8], RequestPayload<'a>> {
+pub fn parse_request_payload<'a>(api_version: i16, api_key: i16, input:&'a [u8]) -> IResult<&'a [u8], RequestPayload<'a>> {
     match api_key {
         0  => map!(input, produce_request, |p| { RequestPayload::ProduceRequest(p) }),
         1  => map!(input, fetch_request, |p| { RequestPayload::FetchRequest(p) }),
@@ -42,7 +44,15 @@ pub fn parse_request_payload<'a>(api_key: i16, input:&'a [u8]) -> IResult<&'a [u
         5  => Error(Code(1)), // StopReplica
         6  => Error(Code(1)), // UpdateMetadata
         7  => Error(Code(1)), // ControlledShutdown
-        8  => Error(Code(1)), // OffsetCommit
+        8  => {
+          // ToDo move it back to parser::offset_commit
+          match api_version {
+            0 => Error(Code(1)),
+            1 => Error(Code(1)),
+            2 => map!(input, offset_commit_request_v2, |p| { RequestPayload::OffsetCommitRequest(p) }),
+            _ => Error(Code(2))
+          }
+        }
         9  => map!(input, offset_fetch_request, |p| { RequestPayload::OffsetFetchRequest(p) }),
         10 => Error(Code(1)), // ConsumerMetadata
         11 => Error(Code(1)), // JoinGroup
@@ -58,7 +68,7 @@ pub fn request_message<'a>(input:&'a [u8]) -> IResult<&'a [u8], RequestMessage<'
       version: be_i16 ~
       correlation_id: be_i32 ~
       client_id: kafka_string ~
-      payload: call!(|i| { parse_request_payload(key, i) }), || {
+      payload: call!(|i| { parse_request_payload(version, key, i) }), || {
           RequestMessage {
               api_version: version,
               correlation_id: correlation_id,
