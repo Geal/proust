@@ -40,10 +40,14 @@ pub fn parse_request_payload<'a>(api_version: i16, api_key: i16, input:&'a [u8])
         1  => map!(input, fetch_request, |p| { RequestPayload::FetchRequest(p) }),
         2  => map!(input, offset_request, |p| { RequestPayload::OffsetRequest(p) }),
         3  => map!(input, topic_metadata_request, |p| { RequestPayload::MetadataRequest(p) }),
+
+        // Non user-facing control APIs
+        // Given proust topology, implementing all of them may not be necessary
         4  => Error(Code(1)), // LeaderAndIsr
         5  => Error(Code(1)), // StopReplica
         6  => Error(Code(1)), // UpdateMetadata
         7  => Error(Code(1)), // ControlledShutdown
+
         8  => {
           // ToDo move it back to parser::offset_commit
           match api_version {
@@ -55,9 +59,14 @@ pub fn parse_request_payload<'a>(api_version: i16, api_key: i16, input:&'a [u8])
         }
         9  => map!(input, offset_fetch_request, |p| { RequestPayload::OffsetFetchRequest(p) }),
         10 => Error(Code(1)), // ConsumerMetadata
+
+        // Not documented, but those exist in the code
+        // Given proust topology, implementing all of them may not be necessary
         11 => Error(Code(1)), // JoinGroup
         12 => Error(Code(1)), // Heartbeat
-        _  => Error(Code(2)) // ToDo proper error code
+
+        _  => Error(Code(2)) // ToDo proper error code. A generic error type would be nicer.
+                             // I'm looking at you, @Geal
     }
 }
 
