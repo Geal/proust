@@ -8,9 +8,10 @@ use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
 use nom::Err::*;
 
+#[derive(PartialEq, Debug)]
 pub struct TopicMessageSet<'a> {
-    topic_name: &'a [u8],
-    partitions: Vec<PartitionMessageSet<'a>>
+    pub topic_name: &'a [u8],
+    pub partitions: Vec<PartitionMessageSet<'a>>
 }
 
 pub fn topic_message_set<'a>(input: &'a [u8]) -> IResult<&'a [u8], TopicMessageSet<'a>> {
@@ -25,10 +26,11 @@ pub fn topic_message_set<'a>(input: &'a [u8]) -> IResult<&'a [u8], TopicMessageS
     })
 }
 
+#[derive(PartialEq, Debug)]
 pub struct PartitionMessageSet<'a> {
-    partition: i32,
-    message_set_size: i16,
-    message_set: MessageSet<'a>
+    pub partition: i32,
+    pub message_set_size: i16,
+    pub message_set: MessageSet<'a>
 }
 
 pub fn partition_message_set<'a>(input: &'a [u8]) -> IResult<&'a [u8], PartitionMessageSet<'a>> {
@@ -51,10 +53,11 @@ pub fn message_set<'a>(input: &'a [u8]) -> IResult<&'a [u8], MessageSet<'a>> {
   kafka_array(input, o_ms_message)
 }
 
+#[derive(PartialEq, Debug)]
 pub struct OMsMessage<'a> {
-    offset: i64,
-    message_size: i32,
-    message: Message<'a>
+    pub offset: i64,
+    pub message_size: i32,
+    pub message: Message<'a>
 }
 
 pub fn o_ms_message<'a>(input: &'a [u8]) -> IResult<&'a [u8], OMsMessage<'a>> {
@@ -73,11 +76,11 @@ pub fn o_ms_message<'a>(input: &'a [u8]) -> IResult<&'a [u8], OMsMessage<'a>> {
 
 #[derive(PartialEq, Debug)]
 pub struct Message<'a> {
-  crc: i32,
-  magic_byte: i8,
-  attributes: i8,
-  key: &'a [u8],
-  value: &'a [u8]
+  pub crc: i32,
+  pub magic_byte: i8,
+  pub attributes: i8,
+  pub key: &'a [u8],
+  pub value: &'a [u8]
 }
 
 pub fn message<'a>(input: &'a [u8]) -> IResult<&'a [u8], Message<'a>> {
