@@ -14,6 +14,7 @@ use parser::offset::*;
 use parser::metadata::*;
 use parser::offset_commit::*;
 use parser::offset_fetch::*;
+use parser::consumer_metadata::*;
 
 #[derive(PartialEq,Debug)]
 pub struct RequestMessage<'a> {
@@ -31,7 +32,8 @@ pub enum RequestPayload<'a> {
     OffsetRequest(OffsetRequest<'a>),
     MetadataRequest(TopicMetadataRequest<'a>),
     OffsetCommitRequest(OffsetCommitRequest<'a>),
-    OffsetFetchRequest(OffsetFetchRequest<'a>)
+    OffsetFetchRequest(OffsetFetchRequest<'a>),
+    ConsumerMetadataRequest(ConsumerMetadataRequest<'a>)
 }
 
 pub fn parse_request_payload<'a>(api_version: i16, api_key: i16, input:&'a [u8]) -> IResult<&'a [u8], RequestPayload<'a>> {
@@ -58,7 +60,7 @@ pub fn parse_request_payload<'a>(api_version: i16, api_key: i16, input:&'a [u8])
           }
         }
         9  => map!(input, offset_fetch_request, |p| { RequestPayload::OffsetFetchRequest(p) }),
-        10 => Error(Code(1)), // ConsumerMetadata
+        10 => map!(input, consumer_metadata_request, |p| { RequestPayload::ConsumerMetadataRequest(p) }),
 
         // Not documented, but those exist in the code
         // Given proust topology, implementing all of them may not be necessary
