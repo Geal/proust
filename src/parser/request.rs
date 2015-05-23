@@ -8,8 +8,9 @@ use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
 use nom::Err::*;
 
-use parser::metadata::*;
 use parser::produce::*;
+use parser::fetch::*;
+use parser::metadata::*;
 
 #[derive(PartialEq,Debug)]
 pub struct RequestMessage<'a> {
@@ -23,13 +24,14 @@ pub struct RequestMessage<'a> {
 #[derive(PartialEq,Debug)]
 pub enum RequestPayload<'a> {
     ProduceRequest(ProduceRequest<'a>),
+    FetchRequest(FetchRequest<'a>),
     MetadataRequest(TopicMetadataRequest<'a>)
 }
 
 pub fn parse_request_payload<'a>(api_key: i16, input:&'a [u8]) -> IResult<&'a [u8], RequestPayload<'a>> {
     match api_key {
         0  => map!(input, produce_request, |p| { RequestPayload::ProduceRequest(p) }),
-        1  => Error(Code(1)), // Fetch
+        1  => map!(input, fetch_request, |p| { RequestPayload::FetchRequest(p) }),
         2  => Error(Code(1)), // Offsets
         3  => map!(input, topic_metadata_request, |p| { RequestPayload::MetadataRequest(p) }),
         4  => Error(Code(1)), // LeaderAndIsr
