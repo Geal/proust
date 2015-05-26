@@ -5,15 +5,16 @@ extern crate core;
 extern crate mmap;
 extern crate mio;
 
-#[macro_use]
-extern crate nom;
+#[macro_use] extern crate nom;
 
+mod parser;
 use parser::request::*;
 use std::error::Error;
 
-mod parser;
 mod storage;
 mod network;
+mod responses;
+use responses::response::*;
 
 
 fn main() {
