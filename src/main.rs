@@ -12,10 +12,10 @@ mod parser;
 use parser::request::*;
 use std::error::Error;
 
-mod responses;
-use responses::response::*;
 mod storage;
 mod network;
+mod responses;
+use responses::response::*;
 
 
 fn main() {

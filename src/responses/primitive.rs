@@ -128,18 +128,27 @@ mod tests {
   #[test]
   fn ser_kafka_string_test() {
     let mut v: Vec<u8> = vec![];
+<<<<<<< HEAD
     ser_kafka_string("", &mut v);
     assert_eq!(&v[..], &[0x00, 0x00][..]);
     v.clear();
     ser_kafka_string("ABCD", &mut v);
     assert_eq!(&v[..], &[0x00, 0x04, 65, 66, 67, 68][..]);
+=======
+    ser_kafka_string(&[][..], &mut v);
+    assert_eq!(&v[..], &[0x00, 0x00][..]);
+>>>>>>> Serializers for primitive kafka values
   }
 
   #[test]
   fn ser_kafka_array_test() {
     let mut v: Vec<u8> = vec![];
     let i: Vec<i8> = vec![127];
+<<<<<<< HEAD
     ser_kafka_array(&i, |ii, o| { ser_i8(*ii,o); }, &mut v);
+=======
+    ser_kafka_array(i, |ii, o| { ser_i8(*ii,o); }, &mut v);
+>>>>>>> Serializers for primitive kafka values
     assert_eq!(&v[..], &[0x00, 0x00, 0x00, 0x01, 0x7f][..]);
   }
 }
