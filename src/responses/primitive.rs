@@ -53,7 +53,7 @@ pub fn ser_kafka_string(bs: KafkaString, output: &mut Vec<u8>) -> () {
   output.extend(bs.iter().cloned());
 }
 
-pub fn ser_kafka_array<F,O>(elems: Vec<O>, closure: F, output: &mut Vec<u8>) -> ()
+pub fn ser_kafka_array<F,O>(elems: &Vec<O>, closure: F, output: &mut Vec<u8>) -> ()
  where F : Fn(&O, &mut Vec<u8>) -> () {
   ser_i32(elems.len() as i32, output);
   for e in elems.iter() {
@@ -126,7 +126,7 @@ mod tests {
   fn ser_kafka_array_test() {
     let mut v: Vec<u8> = vec![];
     let i: Vec<i8> = vec![127];
-    ser_kafka_array(i, |ii, o| { ser_i8(*ii,o); }, &mut v);
+    ser_kafka_array(&i, |ii, o| { ser_i8(*ii,o); }, &mut v);
     assert_eq!(&v[..], &[0x00, 0x00, 0x00, 0x01, 0x7f][..]);
   }
 }
