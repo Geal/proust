@@ -18,6 +18,8 @@ use responses::response::*;
 
 mod parser;
 mod storage;
+mod network;
+
 
 fn main() {
   storage::storage_test();
