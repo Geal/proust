@@ -12,6 +12,7 @@ use parser::primitive::*;
 
 use responses::primitive::*;
 use responses::consumer_metadata::*;
+use responses::produce::*;
 
 #[derive(Debug,PartialEq)]
 pub struct ResponseMessage<'a> {
@@ -21,13 +22,15 @@ pub struct ResponseMessage<'a> {
 
 #[derive(Debug,PartialEq)]
 pub enum ResponsePayload<'a> {
-  ConsumerMetadataResponse(ConsumerMetadataResponse<'a>)
+  ConsumerMetadataResponse(ConsumerMetadataResponse<'a>),
+  ProduceResponse(ProduceResponse<'a>)
 }
 
 pub fn ser_response_message(response: ResponseMessage, output: &mut Vec<u8>) -> () {
   ser_i32(response.correlation_id, output);
 
   match response.response_payload {
-    ResponsePayload::ConsumerMetadataResponse(p) => ser_consumer_metadata_response(p, output)
+    ResponsePayload::ConsumerMetadataResponse(p) => ser_consumer_metadata_response(p, output),
+    ResponsePayload::ProduceResponse(p) => ser_produce_response(&p, output)
   }
 }
