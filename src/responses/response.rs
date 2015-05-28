@@ -17,6 +17,7 @@ use responses::produce::*;
 use responses::fetch::*;
 use responses::offset::*;
 use responses::offset_commit::*;
+use responses::offset_fetch::*;
 
 
 #[derive(Debug,PartialEq)]
@@ -32,7 +33,8 @@ pub enum ResponsePayload<'a> {
   ProduceResponse(ProduceResponse<'a>),
   FetchResponse(FetchResponse<'a>),
   OffsetResponse(OffsetResponse<'a>),
-  OffsetCommitResponse(OffsetCommitResponse<'a>)
+  OffsetCommitResponse(OffsetCommitResponse<'a>),
+  OffsetFetchResponse(OffsetFetchResponse<'a>)
 }
 
 pub fn ser_response_message(response: ResponseMessage, output: &mut Vec<u8>) -> () {
@@ -44,6 +46,7 @@ pub fn ser_response_message(response: ResponseMessage, output: &mut Vec<u8>) -> 
     ResponsePayload::ProduceResponse(p) => ser_produce_response(&p, output),
     ResponsePayload::FetchResponse(p) => ser_fetch_response(p, output),
     ResponsePayload::OffsetResponse(p) => ser_offset_response(p, output),
-    ResponsePayload::OffsetCommitResponse(p) => ser_offset_commit_response(p, output)
+    ResponsePayload::OffsetCommitResponse(p) => ser_offset_commit_response(p, output),
+    ResponsePayload::OffsetFetchResponse(p) => ser_offset_fetch_response(p, output)
   }
 }
