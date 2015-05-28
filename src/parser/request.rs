@@ -3,7 +3,7 @@
 
 use parser::primitive::*;
 
-use nom::{HexDisplay,Needed,IResult,FileProducer,be_i8,be_i16,be_i32,be_i64,be_f32};
+use nom::{HexDisplay,Needed,IResult,FileProducer,be_i8,be_i16,be_i32,be_i64,be_f32, eof};
 use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
 use nom::Err::*;
@@ -112,5 +112,71 @@ mod tests {
       };
 
       assert_eq!(result, Done(&[][..], expected))
+  }
+
+  #[test]
+  fn request_message_trailing_tests() {
+      let input = &[
+        0x00, 0x00, 0x00, 0x0e, // size = 14
+        0x00, 0x03,             // api_key = 3
+        0x00, 0x00,             // api_version = 0
+        0x00, 0x00, 0x00, 0x00, // correlation_id = 0
+        0x00, 0x00,             // client_id = ""
+        0x00, 0x00, 0x00, 0x00, // request_payload = []
+        0x00, 0x00, 0x00, 0x00  // trailing data
+      ];
+      let result = request_message(input);
+      let expected = RequestMessage {
+        api_version: 0,
+        correlation_id: 0,
+        client_id: &[][..],
+        request_payload: RequestPayload::MetadataRequest(vec![])
+      };
+
+      assert_eq!(result, Done(&[0x00, 0x00, 0x00, 0x00][..], expected))
+  }
+
+  #[test]
+  fn request_message_too_short_tests() {
+      let input = &[
+        0x00, 0x00, 0x00, 0x12, // size = 18
+        0x00, 0x03,             // api_key = 3
+        0x00, 0x00,             // api_version = 0
+        0x00, 0x00, 0x00, 0x00, // correlation_id = 0
+        0x00, 0x00,             // client_id = ""
+        0x00, 0x00, 0x00, 0x00, // request_payload = []
+        0x00, 0x00, 0x00, 0x00  // trailing data
+      ];
+      let result = request_message(input);
+      let expected = RequestMessage {
+        api_version: 0,
+        correlation_id: 0,
+        client_id: &[][..],
+        request_payload: RequestPayload::MetadataRequest(vec![])
+      };
+
+      assert_eq!(result, Incomplete(Needed::Unknown))
+  }
+
+  #[test]
+  fn request_message_too_long_tests() {
+      let input = &[
+        0x00, 0x00, 0x00, 0x0c, // size = 12
+        0x00, 0x03,             // api_key = 3
+        0x00, 0x00,             // api_version = 0
+        0x00, 0x00, 0x00, 0x00, // correlation_id = 0
+        0x00, 0x00,             // client_id = ""
+        0x00, 0x00, 0x00, 0x00  // request_payload = []
+      ];
+      let result = request_message(input);
+      let expected = RequestMessage {
+        api_version: 0,
+        correlation_id: 0,
+        client_id: &[][..],
+        request_payload: RequestPayload::MetadataRequest(vec![])
+      };
+
+      // Will fail trying to parse request_payload's array length (4 bytes)
+      assert_eq!(result, Incomplete(Needed::Size(4)))
   }
 }
