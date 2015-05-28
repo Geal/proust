@@ -45,6 +45,10 @@ pub fn ser_i64<'a>(v: i64, output: &mut Vec<u8>) -> () {
   output.push( bits        as u8);
 }
 
+pub fn ser_i64_ref<'a>(v: &i64, output: &mut Vec<u8>) -> () {
+  ser_i64(*v, output);
+}
+
 pub fn ser_kafka_bytes(bs: KafkaBytes, output: &mut Vec<u8>) -> () {
   ser_i32(bs.len() as i32, output);
 

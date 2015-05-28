@@ -15,6 +15,7 @@ use responses::consumer_metadata::*;
 use responses::metadata::*;
 use responses::produce::*;
 use responses::fetch::*;
+use responses::offset::*;
 
 
 #[derive(Debug,PartialEq)]
@@ -28,7 +29,8 @@ pub enum ResponsePayload<'a> {
   ConsumerMetadataResponse(ConsumerMetadataResponse<'a>),
   MetadataResponse(MetadataResponse<'a>),
   ProduceResponse(ProduceResponse<'a>),
-  FetchResponse(FetchResponse<'a>)
+  FetchResponse(FetchResponse<'a>),
+  OffsetResponse(OffsetResponse<'a>)
 }
 
 pub fn ser_response_message(response: ResponseMessage, output: &mut Vec<u8>) -> () {
@@ -38,6 +40,7 @@ pub fn ser_response_message(response: ResponseMessage, output: &mut Vec<u8>) -> 
     ResponsePayload::ConsumerMetadataResponse(p) => ser_consumer_metadata_response(p, output),
     ResponsePayload::MetadataResponse(p) => ser_metadata_response(&p, output),
     ResponsePayload::ProduceResponse(p) => ser_produce_response(&p, output),
-    ResponsePayload::FetchResponse(p) => ser_fetch_response(p, output)
+    ResponsePayload::FetchResponse(p) => ser_fetch_response(p, output),
+    ResponsePayload::OffsetResponse(p) => ser_offset_response(p, output)
   }
 }
