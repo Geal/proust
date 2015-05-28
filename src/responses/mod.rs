@@ -6,3 +6,4 @@ pub mod metadata;
 pub mod fetch;
 pub mod offset;
 pub mod offset_commit;
+pub mod offset_fetch;
