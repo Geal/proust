@@ -12,10 +12,10 @@ use responses::primitive::*;
 
 #[derive(Debug,PartialEq)]
 pub struct ConsumerMetadataResponse<'a> {
-  error_code: i16,
-  coordinator_id: i32,
-  coordinator_host: KafkaString<'a>,
-  coordinator_port: i32
+  pub error_code: i16,
+  pub coordinator_id: i32,
+  pub coordinator_host: KafkaString<'a>,
+  pub coordinator_port: i32
 }
 
 pub fn ser_consumer_metadata_response<'a>(r: ConsumerMetadataResponse<'a>, output: &mut Vec<u8>) -> () {

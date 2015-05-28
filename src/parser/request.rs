@@ -70,11 +70,13 @@ pub fn parse_request_payload<'a>(api_version: i16, api_key: i16, input:&'a [u8])
 pub fn request_message<'a>(input:&'a [u8]) -> IResult<&'a [u8], RequestMessage<'a>> {
     chain!(
       input,
+      size: be_i32 ~
       key: be_i16 ~
       version: be_i16 ~
       correlation_id: be_i32 ~
       client_id: kafka_string ~
       payload: call!(|i| { parse_request_payload(version, key, i) }), || {
+          // TODO use size
           RequestMessage {
               api_version: version,
               correlation_id: correlation_id,
@@ -94,6 +96,7 @@ mod tests {
   #[test]
   fn request_message_test() {
       let input = &[
+        0x00, 0x00, 0x00, 0x0e, // size = 14
         0x00, 0x03,             // api_key = 3
         0x00, 0x00,             // api_version = 0
         0x00, 0x00, 0x00, 0x00, // correlation_id = 0
