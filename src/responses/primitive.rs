@@ -29,6 +29,10 @@ pub fn ser_i32<'a>(v: i32, output: &mut Vec<u8>) -> () {
   output.push( bits        as u8);
 }
 
+pub fn ser_i32_ref<'a>(v: &i32, output: &mut Vec<u8>) -> () {
+  ser_i32(*v, output);
+}
+
 pub fn ser_i64<'a>(v: i64, output: &mut Vec<u8>) -> () {
   let bits: u64 = v as u64;
   output.push((bits >> 56) as u8);
