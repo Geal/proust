@@ -29,7 +29,6 @@ pub fn topic_message_set<'a>(input: &'a [u8]) -> IResult<&'a [u8], TopicMessageS
 #[derive(PartialEq, Debug)]
 pub struct PartitionMessageSet<'a> {
     pub partition: i32,
-    pub message_set_size: i16,
     pub message_set: MessageSet<'a>
 }
 
@@ -37,11 +36,11 @@ pub fn partition_message_set<'a>(input: &'a [u8]) -> IResult<&'a [u8], Partition
   chain!(
     input,
     partition: be_i32 ~
-    message_set_size: be_i16 ~
+    message_set_size: be_i32 ~
     message_set: message_set, || {
+      // TODO use message_set_size
       PartitionMessageSet {
         partition: partition,
-        message_set_size: message_set_size,
         message_set: message_set
       }
     })
@@ -56,7 +55,6 @@ pub fn message_set<'a>(input: &'a [u8]) -> IResult<&'a [u8], MessageSet<'a>> {
 #[derive(PartialEq, Debug)]
 pub struct OMsMessage<'a> {
     pub offset: i64,
-    pub message_size: i32,
     pub message: Message<'a>
 }
 
@@ -66,9 +64,9 @@ pub fn o_ms_message<'a>(input: &'a [u8]) -> IResult<&'a [u8], OMsMessage<'a>> {
     offset: be_i64 ~
     message_size: be_i32 ~
     message: message, || {
+      // TODO use message_size
       OMsMessage {
         offset: offset,
-        message_size: message_size,
         message: message
       }
     })
