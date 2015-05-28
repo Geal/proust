@@ -38,15 +38,52 @@ pub enum ResponsePayload<'a> {
 }
 
 pub fn ser_response_message(response: ResponseMessage, output: &mut Vec<u8>) -> () {
-  ser_i32(response.correlation_id, output);
+  let mut r_output: Vec<u8> = vec![];
+  ser_i32(response.correlation_id, &mut r_output);
 
   match response.response_payload {
-    ResponsePayload::ConsumerMetadataResponse(p) => ser_consumer_metadata_response(p, output),
-    ResponsePayload::MetadataResponse(p) => ser_metadata_response(&p, output),
-    ResponsePayload::ProduceResponse(p) => ser_produce_response(&p, output),
-    ResponsePayload::FetchResponse(p) => ser_fetch_response(p, output),
-    ResponsePayload::OffsetResponse(p) => ser_offset_response(p, output),
-    ResponsePayload::OffsetCommitResponse(p) => ser_offset_commit_response(p, output),
-    ResponsePayload::OffsetFetchResponse(p) => ser_offset_fetch_response(p, output)
+    ResponsePayload::ConsumerMetadataResponse(p) => ser_consumer_metadata_response(p, &mut r_output),
+    ResponsePayload::MetadataResponse(p) => ser_metadata_response(&p, &mut r_output),
+    ResponsePayload::ProduceResponse(p) => ser_produce_response(&p, &mut r_output),
+    ResponsePayload::FetchResponse(p) => ser_fetch_response(p, &mut r_output),
+    ResponsePayload::OffsetResponse(p) => ser_offset_response(p, &mut r_output),
+    ResponsePayload::OffsetCommitResponse(p) => ser_offset_commit_response(p, &mut r_output),
+    ResponsePayload::OffsetFetchResponse(p) => ser_offset_fetch_response(p, &mut r_output)
+  }
+
+  ser_i32(r_output.len() as i32, output);
+  output.extend(r_output);
+}
+
+#[cfg(test)]
+
+mod tests {
+  use super::*;
+  use nom::*;
+  use nom::IResult::*;
+
+  use responses::consumer_metadata::*;
+
+  #[test]
+  fn ser_response_message_test() {
+    let mut v: Vec<u8> = vec![];
+    ser_response_message(
+      ResponseMessage {
+        correlation_id: 0,
+        response_payload: ResponsePayload::ConsumerMetadataResponse(ConsumerMetadataResponse {
+          error_code: 0,
+          coordinator_id: 1337,
+          coordinator_host: &[][..],
+          coordinator_port: 9000
+        })
+      }, &mut v);
+    assert_eq!(&v[..], &[
+      0x00, 0x00, 0x00, 0x10, // size = 16
+      0x00, 0x00, 0x00, 0x00, // correlation_id = 0
+      0x00, 0x00,             // error_code = 0
+      0x00, 0x00, 0x05, 0x39, // coordinator_id = 1337
+      0x00, 0x00,             // coordinator_host = ""
+      0x00, 0x00, 0x23, 0x28  // coordinator_port = 9000
+    ][..]);
   }
 }
