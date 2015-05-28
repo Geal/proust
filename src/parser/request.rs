@@ -68,23 +68,34 @@ pub fn parse_request_payload<'a>(api_version: i16, api_key: i16, input:&'a [u8])
 }
 
 pub fn request_message<'a>(input:&'a [u8]) -> IResult<&'a [u8], RequestMessage<'a>> {
-    chain!(
-      input,
-      size: be_i32 ~
-      key: be_i16 ~
-      version: be_i16 ~
-      correlation_id: be_i32 ~
-      client_id: kafka_string ~
-      payload: call!(|i| { parse_request_payload(version, key, i) }), || {
-          // TODO use size
-          RequestMessage {
-              api_version: version,
-              correlation_id: correlation_id,
-              client_id: client_id,
-              request_payload: payload
+  match be_i32(input) {
+    Done(i, length) => {
+      let sz = length as usize;
+      let request_bytes = |ii: &'a [u8]| {
+        take!(ii, sz)
+      };
+      flat_map!(i, request_bytes, |rb| {
+        chain!(
+          rb,
+          key: be_i16 ~
+          version: be_i16 ~
+          correlation_id: be_i32 ~
+          client_id: kafka_string ~
+          payload: call!(|i| { parse_request_payload(version, key, i) }) ~
+          eof, || {
+              RequestMessage {
+                  api_version: version,
+                  correlation_id: correlation_id,
+                  client_id: client_id,
+                  request_payload: payload
+              }
           }
-      }
-    )
+        )
+      })
+    }
+    Error(e)      => Error(e),
+    Incomplete(e) => Incomplete(e)
+  }
 }
 
 #[cfg(test)]
