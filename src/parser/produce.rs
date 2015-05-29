@@ -49,11 +49,11 @@ mod tests {
             0x00, 0x00, 0x00, 0x01, // PartitionMessageSet array length
                 // PartitionMessageSet
                 0x00, 0x00, 0x00, 0x00, // partition = 0
-                0x00, 0x00,             // message_set_size = ToDo
+                0x00, 0x00, 0x00, 0x1e, // message_set_size = 30
                 0x00, 0x00, 0x00, 0x01, // message_set array length
                     // OMsMessage
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // offset = 0
-                    0x00, 0x00, 0x00, 0x00,                         // message_size = ToDo
+                    0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
                     // Message
                     0x00, 0x00, 0x00, 0x00, // crc = 0
                     0x00,                   // magic_byte = 0
@@ -73,11 +73,9 @@ mod tests {
             partitions: vec![
               PartitionMessageSet {
                 partition: 0,
-                message_set_size: 0,
                 message_set: vec![
                   OMsMessage {
                     offset: 0,
-                    message_size: 0,
                     message: Message {
                       crc: 0,
                       magic_byte: 0,

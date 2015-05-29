@@ -36,7 +36,7 @@ pub fn kafka_bytes<'a>(input:&'a [u8]) -> IResult<&'a [u8], KafkaBytes<'a>> {
       if i.len() >= sz {
         return Done(&i[sz..], &i[0..sz])
       } else {
-        return Incomplete(Needed::Size(length as u32))
+        return Incomplete(Needed::Size(length as usize))
       }
     }
     Error(e)      => Error(e),
@@ -53,7 +53,7 @@ pub fn kafka_string<'a>(input:&'a [u8]) -> IResult<&'a [u8], KafkaString<'a>> {
       if i.len() >= sz {
         return Done(&i[sz..], &i[0..sz])
       } else {
-        return Incomplete(Needed::Size(length as u32))
+        return Incomplete(Needed::Size(length as usize))
       }
     }
     Error(e)      => Error(e),

@@ -3,7 +3,7 @@
 
 use parser::primitive::*;
 
-use nom::{HexDisplay,Needed,IResult,FileProducer,be_i8,be_i16,be_i32,be_i64,be_f32};
+use nom::{HexDisplay,Needed,IResult,FileProducer,be_i8,be_i16,be_i32,be_i64,be_f32, eof};
 use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
 use nom::Err::*;
@@ -68,21 +68,34 @@ pub fn parse_request_payload<'a>(api_version: i16, api_key: i16, input:&'a [u8])
 }
 
 pub fn request_message<'a>(input:&'a [u8]) -> IResult<&'a [u8], RequestMessage<'a>> {
-    chain!(
-      input,
-      key: be_i16 ~
-      version: be_i16 ~
-      correlation_id: be_i32 ~
-      client_id: kafka_string ~
-      payload: call!(|i| { parse_request_payload(version, key, i) }), || {
-          RequestMessage {
-              api_version: version,
-              correlation_id: correlation_id,
-              client_id: client_id,
-              request_payload: payload
+  match be_i32(input) {
+    Done(i, length) => {
+      let sz = length as usize;
+      let request_bytes = |ii: &'a [u8]| {
+        take!(ii, sz)
+      };
+      flat_map!(i, request_bytes, |rb| {
+        chain!(
+          rb,
+          key: be_i16 ~
+          version: be_i16 ~
+          correlation_id: be_i32 ~
+          client_id: kafka_string ~
+          payload: call!(|i| { parse_request_payload(version, key, i) }) ~
+          eof, || {
+              RequestMessage {
+                  api_version: version,
+                  correlation_id: correlation_id,
+                  client_id: client_id,
+                  request_payload: payload
+              }
           }
-      }
-    )
+        )
+      })
+    }
+    Error(e)      => Error(e),
+    Incomplete(e) => Incomplete(e)
+  }
 }
 
 #[cfg(test)]
@@ -94,6 +107,7 @@ mod tests {
   #[test]
   fn request_message_test() {
       let input = &[
+        0x00, 0x00, 0x00, 0x0e, // size = 14
         0x00, 0x03,             // api_key = 3
         0x00, 0x00,             // api_version = 0
         0x00, 0x00, 0x00, 0x00, // correlation_id = 0
@@ -109,5 +123,59 @@ mod tests {
       };
 
       assert_eq!(result, Done(&[][..], expected))
+  }
+
+  #[test]
+  fn request_message_trailing_tests() {
+      let input = &[
+        0x00, 0x00, 0x00, 0x0e, // size = 14
+        0x00, 0x03,             // api_key = 3
+        0x00, 0x00,             // api_version = 0
+        0x00, 0x00, 0x00, 0x00, // correlation_id = 0
+        0x00, 0x00,             // client_id = ""
+        0x00, 0x00, 0x00, 0x00, // request_payload = []
+        0x00, 0x00, 0x00, 0x00  // trailing data
+      ];
+      let result = request_message(input);
+      let expected = RequestMessage {
+        api_version: 0,
+        correlation_id: 0,
+        client_id: &[][..],
+        request_payload: RequestPayload::MetadataRequest(vec![])
+      };
+
+      assert_eq!(result, Done(&[0x00, 0x00, 0x00, 0x00][..], expected))
+  }
+
+  #[test]
+  fn request_message_too_short_tests() {
+      let input = &[
+        0x00, 0x00, 0x00, 0x12, // size = 18
+        0x00, 0x03,             // api_key = 3
+        0x00, 0x00,             // api_version = 0
+        0x00, 0x00, 0x00, 0x00, // correlation_id = 0
+        0x00, 0x00,             // client_id = ""
+        0x00, 0x00, 0x00, 0x00, // request_payload = []
+        0x00, 0x00, 0x00, 0x00  // trailing data
+      ];
+      let result = request_message(input);
+
+      assert_eq!(result, Incomplete(Needed::Unknown))
+  }
+
+  #[test]
+  fn request_message_too_long_tests() {
+      let input = &[
+        0x00, 0x00, 0x00, 0x0c, // size = 12
+        0x00, 0x03,             // api_key = 3
+        0x00, 0x00,             // api_version = 0
+        0x00, 0x00, 0x00, 0x00, // correlation_id = 0
+        0x00, 0x00,             // client_id = ""
+        0x00, 0x00, 0x00, 0x00  // request_payload = []
+      ];
+      let result = request_message(input);
+
+      // Will fail trying to parse request_payload's array length (4 bytes)
+      assert_eq!(result, Incomplete(Needed::Size(4)))
   }
 }
