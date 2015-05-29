@@ -3,7 +3,7 @@
 
 use parser::primitive::*;
 
-use nom::{HexDisplay,Needed,IResult,FileProducer, be_i8, be_i16, be_i32, be_i64};
+use nom::{HexDisplay,Needed,IResult,FileProducer, be_i8, be_i16, be_i32, be_i64, eof};
 use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
 use nom::Err::*;
@@ -37,8 +37,8 @@ pub fn partition_message_set<'a>(input: &'a [u8]) -> IResult<&'a [u8], Partition
     input,
     partition: be_i32 ~
     message_set_size: be_i32 ~
-    message_set: message_set, || {
-      // TODO use message_set_size
+    message_set: call!(|i| { message_set(message_set_size as usize, i) }),
+    || {
       PartitionMessageSet {
         partition: partition,
         message_set: message_set
@@ -48,8 +48,19 @@ pub fn partition_message_set<'a>(input: &'a [u8]) -> IResult<&'a [u8], Partition
 
 pub type MessageSet<'a> = Vec<OMsMessage<'a>>;
 
-pub fn message_set<'a>(input: &'a [u8]) -> IResult<&'a [u8], MessageSet<'a>> {
-  kafka_array(input, o_ms_message)
+pub fn message_set<'a>(size: usize, input: &'a [u8]) -> IResult<&'a [u8], MessageSet<'a>> {
+  let ms_bytes = |i: &'a [u8]| {
+    take!(i, size)
+  };
+
+  flat_map!(input, ms_bytes, |msb| {
+    chain!(
+      msb,
+      ms: call!(|i| { kafka_array(i, o_ms_message) }) ~
+      eof, || {
+        ms
+      })
+  })
 }
 
 #[derive(PartialEq, Debug)]
@@ -63,8 +74,7 @@ pub fn o_ms_message<'a>(input: &'a [u8]) -> IResult<&'a [u8], OMsMessage<'a>> {
     input,
     offset: be_i64 ~
     message_size: be_i32 ~
-    message: message, || {
-      // TODO use message_size
+    message: call!(|i| { message(message_size as usize, i) }), || {
       OMsMessage {
         offset: offset,
         message: message
@@ -81,22 +91,29 @@ pub struct Message<'a> {
   pub value: &'a [u8]
 }
 
-pub fn message<'a>(input: &'a [u8]) -> IResult<&'a [u8], Message<'a>> {
-  chain!(
-    input,
-    crc: be_i32 ~
-    magic_byte: be_i8 ~
-    attributes: be_i8 ~
-    key: kafka_bytes ~
-    value: kafka_bytes, || {
-      Message {
-        crc: crc,
-        magic_byte: magic_byte,
-        attributes: attributes,
-        key: key,
-        value: value
-      }
-    })
+pub fn message<'a>(size: usize, input: &'a [u8]) -> IResult<&'a [u8], Message<'a>> {
+  let message_bytes = |ii: &'a [u8]| {
+    take!(ii, size)
+  };
+
+  flat_map!(input, message_bytes, |mb| {
+    chain!(
+      mb,
+      crc: be_i32 ~
+      magic_byte: be_i8 ~
+      attributes: be_i8 ~
+      key: kafka_bytes ~
+      value: kafka_bytes ~
+      eof, || {
+        Message {
+          crc: crc,
+          magic_byte: magic_byte,
+          attributes: attributes,
+          key: key,
+          value: value
+        }
+      })
+  })
 }
 
 #[cfg(test)]
@@ -114,7 +131,7 @@ mod tests {
         0x00, 0x00, 0x00, 0x00, // key = []
         0x00, 0x00, 0x00, 0x00  // value = []
       ];
-      let result = message(input);
+      let result = message(14, input);
       let expected = Message {
         crc: 0,
         magic_byte: 0,
@@ -124,5 +141,55 @@ mod tests {
       };
 
       assert_eq!(result, Done(&[][..], expected))
+  }
+
+  #[test]
+  fn message_trailing_tests() {
+      let input = &[
+        0x00, 0x00, 0x00, 0x00, // crc = 0
+        0x00,                   // magic_byte = 0
+        0x00,                   // attributes = 0
+        0x00, 0x00, 0x00, 0x00, // key = []
+        0x00, 0x00, 0x00, 0x00, // value = []
+        0x00, 0x00, 0x00, 0x00  // trailing data
+      ];
+      let result = message(14, input);
+      let expected = Message {
+        crc: 0,
+        magic_byte: 0,
+        attributes: 0,
+        key: &[][..],
+        value: &[][..]
+      };
+
+      assert_eq!(result, Done(&[0x00, 0x00, 0x00, 0x00][..], expected))
+  }
+
+  #[test]
+  fn message_too_short_tests() {
+      let input = &[
+        0x00, 0x00, 0x00, 0x00, // crc = 0
+        0x00,                   // magic_byte = 0
+        0x00,                   // attributes = 0
+        0x00, 0x00, 0x00, 0x00, // key = []
+        0x00, 0x00, 0x00, 0x00  // value = []
+      ];
+      let result = message(18, input);
+
+      assert_eq!(result, Incomplete(Needed::Size(18)));
+  }
+
+  #[test]
+  fn message_too_long_tests() {
+      let input = &[
+        0x00, 0x00, 0x00, 0x00, // crc = 0
+        0x00,                   // magic_byte = 0
+        0x00,                   // attributes = 0
+        0x00, 0x00, 0x00, 0x00, // key = []
+        0x00, 0x00, 0x00, 0x00  // value = []
+      ];
+      let result = message(12, input);
+
+      assert_eq!(result, Incomplete(Needed::Size(4)));
   }
 }
