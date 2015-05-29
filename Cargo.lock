@@ -2,11 +2,11 @@
 name = "proust"
 version = "0.0.1"
 dependencies = [
- "nom 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "nom 0.3.1 (git+https://github.com/Geal/nom.git)",
 ]
 
 [[package]]
 name = "nom"
 version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+source = "git+https://github.com/Geal/nom.git#a4986076bf2f1c13088b182045a8a20ac6f05da0"
 
