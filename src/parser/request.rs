@@ -2,6 +2,7 @@
 #![allow(unused_imports)]
 
 use parser::primitive::*;
+use parser::errors::*;
 
 use nom::{HexDisplay,Needed,IResult,FileProducer,be_i8,be_i16,be_i32,be_i64,be_f32, eof};
 use nom::{Consumer,ConsumerState};
@@ -45,10 +46,10 @@ pub fn parse_request_payload<'a>(api_version: i16, api_key: i16, input:&'a [u8])
 
         // Non user-facing control APIs
         // Given proust topology, implementing all of them may not be necessary
-        4  => Error(Code(1)), // LeaderAndIsr
-        5  => Error(Code(1)), // StopReplica
-        6  => Error(Code(1)), // UpdateMetadata
-        7  => Error(Code(1)), // ControlledShutdown
+        4  => Error(Code(InputError::NotImplemented.to_int())), // LeaderAndIsr
+        5  => Error(Code(InputError::NotImplemented.to_int())), // StopReplica
+        6  => Error(Code(InputError::NotImplemented.to_int())), // UpdateMetadata
+        7  => Error(Code(InputError::NotImplemented.to_int())), // ControlledShutdown
 
         8  => {
            let pp = |i| { offset_commit_request(i, api_version) };
@@ -59,11 +60,10 @@ pub fn parse_request_payload<'a>(api_version: i16, api_key: i16, input:&'a [u8])
 
         // Not documented, but those exist in the code
         // Given proust topology, implementing all of them may not be necessary
-        11 => Error(Code(1)), // JoinGroup
-        12 => Error(Code(1)), // Heartbeat
+        11 => Error(Code(InputError::NotImplemented.to_int())), // JoinGroup
+        12 => Error(Code(InputError::NotImplemented.to_int())), // Heartbeat
 
-        _  => Error(Code(2)) // ToDo proper error code. A generic error type would be nicer.
-                             // I'm looking at you, @Geal
+        _  => Error(Code(InputError::ParserError.to_int()))
     }
 }
 

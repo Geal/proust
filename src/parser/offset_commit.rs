@@ -8,6 +8,8 @@ use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
 use nom::Err::*;
 
+use parser::errors::*;
+
 #[derive(PartialEq,Debug)]
 pub enum OffsetCommitRequest<'a> {
   V0(OffsetCommitRequestV0<'a>),
@@ -20,7 +22,7 @@ pub fn offset_commit_request<'a>(input:&'a [u8], api_version: i16) -> IResult<&'
     0 => map!(input, offset_commit_request_v0, |p| { OffsetCommitRequest::V0(p) }),
     1 => map!(input, offset_commit_request_v1, |p| { OffsetCommitRequest::V1(p) }),
     2 => map!(input, offset_commit_request_v2, |p| { OffsetCommitRequest::V2(p) }),
-    _ => Error(Code(2))
+    _ => Error(Code(InputError::ParserError.to_int()))
   }
 }
 

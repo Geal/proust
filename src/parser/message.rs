@@ -8,6 +8,8 @@ use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
 use nom::Err::*;
 
+use parser::errors::*;
+
 #[derive(PartialEq, Debug)]
 pub struct TopicMessageSet<'a> {
     pub topic_name: KafkaString<'a>,
@@ -37,7 +39,7 @@ pub fn partition_message_set<'a>(input: &'a [u8]) -> IResult<&'a [u8], Partition
     input,
     partition: be_i32 ~
     message_set_size: be_i32 ~
-    message_set: call!(|i| { message_set(message_set_size as usize, i) }),
+    message_set: call!(|i| { message_set(message_set_size, i) }),
     || {
       PartitionMessageSet {
         partition: partition,
@@ -48,9 +50,13 @@ pub fn partition_message_set<'a>(input: &'a [u8]) -> IResult<&'a [u8], Partition
 
 pub type MessageSet<'a> = Vec<OMsMessage<'a>>;
 
-pub fn message_set<'a>(size: usize, input: &'a [u8]) -> IResult<&'a [u8], MessageSet<'a>> {
+pub fn message_set<'a>(size: i32, input: &'a [u8]) -> IResult<&'a [u8], MessageSet<'a>> {
   let ms_bytes = |i: &'a [u8]| {
-    take!(i, size)
+    if size >= 0 {
+      take!(i, size as usize)
+    } else {
+      Error(Code(InputError::InvalidMessageSetSize.to_int()))
+    }
   };
 
   flat_map!(input, ms_bytes, |msb| {
@@ -74,7 +80,7 @@ pub fn o_ms_message<'a>(input: &'a [u8]) -> IResult<&'a [u8], OMsMessage<'a>> {
     input,
     offset: be_i64 ~
     message_size: be_i32 ~
-    message: call!(|i| { message(message_size as usize, i) }), || {
+    message: call!(|i| { message(message_size, i) }), || {
       OMsMessage {
         offset: offset,
         message: message
@@ -91,9 +97,13 @@ pub struct Message<'a> {
   pub value: &'a [u8]
 }
 
-pub fn message<'a>(size: usize, input: &'a [u8]) -> IResult<&'a [u8], Message<'a>> {
-  let message_bytes = |ii: &'a [u8]| {
-    take!(ii, size)
+pub fn message<'a>(size: i32, input: &'a [u8]) -> IResult<&'a [u8], Message<'a>> {
+  let message_bytes = |i: &'a [u8]| {
+    if size >= 0 {
+      take!(i, size as usize)
+    } else {
+      Error(Code(InputError::InvalidMessageSize.to_int()))
+    }
   };
 
   flat_map!(input, message_bytes, |mb| {
