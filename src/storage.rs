@@ -11,6 +11,30 @@ use std::fs::File;
 use std::fs::OpenOptions;
 use mmap::{MemoryMap,MapOption};
 use core::slice::from_raw_parts_mut;
+use std::sync::mpsc;
+use std::sync::mpsc::{channel,Sender,Receiver};
+use std::thread::{self,Thread,Builder};
+use util::monitor;
+use mio;
+
+
+pub type Request  = u8;
+pub type Response = u8;
+
+pub fn storage(out:&mio::Sender<Response>, name: &str) -> Sender<Request> {
+  let (tx,rx) = channel::<u8>();
+  let t2 = out.clone();
+  thread::spawn(move || {
+    loop {
+      if let Ok(count) = rx.recv() {
+        t2.send(count + 1);
+      }
+    }
+  });
+
+  tx
+}
+
 
 pub fn storage_test() {
 
