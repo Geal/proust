@@ -69,10 +69,13 @@ pub fn parse_request_payload<'a>(api_version: i16, api_key: i16, input:&'a [u8])
 
 pub fn request_message<'a>(input:&'a [u8]) -> IResult<&'a [u8], RequestMessage<'a>> {
   match be_i32(input) {
-    Done(i, length) => {
-      let sz = length as usize;
-      let request_bytes = |ii: &'a [u8]| {
-        take!(ii, sz)
+    Done(i, size) => {
+      let request_bytes = |i: &'a [u8]| {
+        if size >= 0 {
+          take!(i, size as usize)
+        } else {
+          Error(Code(InputError::InvalidRequestSize.to_int()))
+        }
       };
       flat_map!(i, request_bytes, |rb| {
         chain!(
@@ -104,6 +107,10 @@ mod tests {
   use nom::*;
   use nom::IResult::*;
 
+  use nom::Err::*;
+
+  use parser::errors::*;
+
   #[test]
   fn request_message_test() {
       let input = &[
@@ -123,6 +130,21 @@ mod tests {
       };
 
       assert_eq!(result, Done(&[][..], expected))
+  }
+
+  #[test]
+  fn request_message_wrong_size_test() {
+      let input = &[
+        0x80, 0x00, 0x00, 0x00, // size = 14
+        0x00, 0x03,             // api_key = 3
+        0x00, 0x00,             // api_version = 0
+        0x00, 0x00, 0x00, 0x00, // correlation_id = 0
+        0x00, 0x00,             // client_id = ""
+        0x00, 0x00, 0x00, 0x00  // request_payload = []
+      ];
+      let result = request_message(input);
+
+      assert_eq!(result, Error(Code(InputError::InvalidRequestSize.to_int())));
   }
 
   #[test]
