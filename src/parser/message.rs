@@ -123,6 +123,168 @@ mod tests {
   use nom::IResult::*;
 
   #[test]
+  fn topic_message_set_tests() {
+      let input = &[
+        0x00, 0x00,             // topic_name = ""
+        0x00, 0x00, 0x00, 0x01, // partitions array length = 1
+            0x00, 0x00, 0x00, 0x01, // partition = 1
+            0x00, 0x00, 0x00, 0x1e, // message_set size = 30
+            0x00, 0x00, 0x00, 0x01, // message_set array length = 1
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
+                0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
+                    0x00, 0x00, 0x00, 0x00, // crc = 0
+                    0x00,                   // magic_byte = 0
+                    0x00,                   // attributes = 0
+                    0x00, 0x00, 0x00, 0x00, // key = []
+                    0x00, 0x00, 0x00, 0x00  // value = []
+      ];
+      let result = topic_message_set(input);
+      let expected = TopicMessageSet {
+        topic_name: &[][..],
+        partitions: vec![PartitionMessageSet {
+          partition: 1,
+          message_set: vec![OMsMessage {
+            offset: 1,
+            message: Message {
+              crc: 0,
+              magic_byte: 0,
+              attributes: 0,
+              key: &[][..],
+              value: &[][..]
+            }
+          }]
+        }]
+      };
+
+      assert_eq!(result, Done(&[][..], expected))
+  }
+
+  #[test]
+  fn partition_message_set_tests() {
+      let input = &[
+        0x00, 0x00, 0x00, 0x01, // partition = 1
+        0x00, 0x00, 0x00, 0x1e, // message_set size = 30
+        0x00, 0x00, 0x00, 0x01, // message_set array length = 1
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
+            0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
+                0x00, 0x00, 0x00, 0x00, // crc = 0
+                0x00,                   // magic_byte = 0
+                0x00,                   // attributes = 0
+                0x00, 0x00, 0x00, 0x00, // key = []
+                0x00, 0x00, 0x00, 0x00  // value = []
+      ];
+      let result = partition_message_set(input);
+      let expected = PartitionMessageSet {
+        partition: 1,
+        message_set: vec![OMsMessage {
+          offset: 1,
+          message: Message {
+            crc: 0,
+            magic_byte: 0,
+            attributes: 0,
+            key: &[][..],
+            value: &[][..]
+          }
+        }]
+      };
+
+      assert_eq!(result, Done(&[][..], expected))
+  }
+
+  #[test]
+  fn message_set_tests() {
+      let input = &[
+        0x00, 0x00, 0x00, 0x01, // message_set array length = 1
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
+            0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
+                0x00, 0x00, 0x00, 0x00, // crc = 0
+                0x00,                   // magic_byte = 0
+                0x00,                   // attributes = 0
+                0x00, 0x00, 0x00, 0x00, // key = []
+                0x00, 0x00, 0x00, 0x00  // value = []
+      ];
+      let result = message_set(30, input);
+      let expected = vec![
+        OMsMessage {
+          offset: 1,
+          message: Message {
+            crc: 0,
+            magic_byte: 0,
+            attributes: 0,
+            key: &[][..],
+            value: &[][..]
+          }
+        }
+      ];
+
+      assert_eq!(result, Done(&[][..], expected))
+  }
+
+  #[test]
+  fn message_set_trailing_tests() {
+      let input = &[
+        0x00, 0x00, 0x00, 0x01, // message_set array length = 1
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
+            0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
+                0x00, 0x00, 0x00, 0x00, // crc = 0
+                0x00,                   // magic_byte = 0
+                0x00,                   // attributes = 0
+                0x00, 0x00, 0x00, 0x00, // key = []
+                0x00, 0x00, 0x00, 0x00,  // value = []
+        0x00, 0x00, 0x00, 0x00, // trailing
+      ];
+      let result = message_set(30, input);
+      let expected = vec![
+        OMsMessage {
+          offset: 1,
+          message: Message {
+            crc: 0,
+            magic_byte: 0,
+            attributes: 0,
+            key: &[][..],
+            value: &[][..]
+          }
+        }
+      ];
+
+      assert_eq!(result, Done(&[0x00, 0x00, 0x00, 0x00][..], expected))
+  }
+
+  #[test]
+  fn message_set_too_short_tests() {
+      let input = &[
+        0x00, 0x00, 0x00, 0x01, // message_set array length = 1
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
+            0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
+                0x00, 0x00, 0x00, 0x00, // crc = 0
+                0x00,                   // magic_byte = 0
+                0x00,                   // attributes = 0
+                0x00, 0x00, 0x00, 0x00, // key = []
+                0x00, 0x00, 0x00, 0x00  // value = []
+      ];
+      let result = message_set(32, input);
+
+      assert_eq!(result, Incomplete(Needed::Size(32)));
+  }
+
+  #[test]
+  fn message_set_too_long_tests() {
+      let input = &[
+        0x00, 0x00, 0x00, 0x01, // message_set array length = 1
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
+            0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
+                0x00, 0x00, 0x00, 0x00, // crc = 0
+                0x00,                   // magic_byte = 0
+                0x00,                   // attributes = 0
+                0x00, 0x00, 0x00, 0x00, // key = []
+                0x00, 0x00, 0x00, 0x00  // value = []
+      ];
+      let result = message_set(28, input);
+
+      assert_eq!(result, Incomplete(Needed::Unknown));
+  }
+
+  #[test]
   fn message_tests() {
       let input = &[
         0x00, 0x00, 0x00, 0x00, // crc = 0
