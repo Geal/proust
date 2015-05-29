@@ -11,6 +11,8 @@ extern crate crc;
 mod parser;
 use parser::request::*;
 use std::error::Error;
+use std::thread;
+use std::sync::mpsc::{channel,Sender,Receiver};
 
 mod storage;
 mod network;
@@ -20,28 +22,13 @@ use responses::response::*;
 mod parser;
 mod storage;
 mod network;
-
+mod util;
 
 fn main() {
   storage::storage_test();
 
-  let rx = network::start_listener("abcd");
-  loop {
-    select! {
-      val  = rx.recv() => match val {
-        Ok(a)  => println!("Received val {}", a),
-        Err(e) => {
-          println!("Received err {:?}", e.description());
-          break;
-        }
-      }
-      /*,
-      () = timeout.recv() => {
-        println!("timed out, total time was more than 10 seconds");
-        break;
-      }*/
-    }
-  }
+  let (tx, jg) = network::start_listener("abcd");
+  jg.join();
 
   println!("Hello, world!");
 }
