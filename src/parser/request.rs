@@ -159,12 +159,6 @@ mod tests {
         0x00, 0x00, 0x00, 0x00  // trailing data
       ];
       let result = request_message(input);
-      let expected = RequestMessage {
-        api_version: 0,
-        correlation_id: 0,
-        client_id: &[][..],
-        request_payload: RequestPayload::MetadataRequest(vec![])
-      };
 
       assert_eq!(result, Incomplete(Needed::Unknown))
   }
@@ -180,12 +174,6 @@ mod tests {
         0x00, 0x00, 0x00, 0x00  // request_payload = []
       ];
       let result = request_message(input);
-      let expected = RequestMessage {
-        api_version: 0,
-        correlation_id: 0,
-        client_id: &[][..],
-        request_payload: RequestPayload::MetadataRequest(vec![])
-      };
 
       // Will fail trying to parse request_payload's array length (4 bytes)
       assert_eq!(result, Incomplete(Needed::Size(4)))
