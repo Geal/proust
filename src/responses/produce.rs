@@ -46,7 +46,7 @@ mod tests {
 
 
     ser_produce_response(&vec![(
-      &[][..],
+      "",
       vec![(
         127,
         0,

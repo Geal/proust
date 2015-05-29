@@ -69,7 +69,7 @@ mod tests {
         timeout: 0,
         topics: vec![
           TopicMessageSet {
-            topic_name: &[][..],
+            topic_name: "",
             partitions: vec![
               PartitionMessageSet {
                 partition: 0,

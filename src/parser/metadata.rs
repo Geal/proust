@@ -26,7 +26,7 @@ mod tests {
         0x00, 0x00, 0x00, 0x01, 0x00, 0x00  //  [""]
       ];
       let result = topic_metadata_request(input);
-      let expected = vec![&[][..]];
+      let expected = vec![""];
 
       assert_eq!(result, Done(&[][..], expected))
   }

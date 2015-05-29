@@ -10,7 +10,7 @@ use nom::Err::*;
 
 #[derive(PartialEq, Debug)]
 pub struct TopicMessageSet<'a> {
-    pub topic_name: &'a [u8],
+    pub topic_name: KafkaString<'a>,
     pub partitions: Vec<PartitionMessageSet<'a>>
 }
 
@@ -140,7 +140,7 @@ mod tests {
       ];
       let result = topic_message_set(input);
       let expected = TopicMessageSet {
-        topic_name: &[][..],
+        topic_name: "",
         partitions: vec![PartitionMessageSet {
           partition: 1,
           message_set: vec![OMsMessage {

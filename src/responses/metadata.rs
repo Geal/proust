@@ -93,12 +93,12 @@ mod tests {
     ser_metadata_response(&MetadataResponse {
       brokers: vec![Broker {
         node_id: 0,
-        host: &[][..],
+        host: "",
         port: 0
       }],
       topics: vec![TopicMetadata {
         topic_error_code: 0,
-        topic_name: &[][..],
+        topic_name: "",
         partitions: vec![PartitionMetadata {
           partition_error_code: 0,
           partition_id: 0,
@@ -132,7 +132,7 @@ mod tests {
     let mut v: Vec<u8> = vec![];
     ser_broker(&Broker {
       node_id: 0,
-      host: &[][..],
+      host: "",
       port: 0
     }, &mut v);
     assert_eq!(&v[..], &[
@@ -147,7 +147,7 @@ mod tests {
     let mut v: Vec<u8> = vec![];
     ser_topic_metadata(&TopicMetadata {
       topic_error_code: 0,
-      topic_name: &[][..],
+      topic_name: "",
       partitions: vec![]
     }, &mut v);
     assert_eq!(&v[..], &[

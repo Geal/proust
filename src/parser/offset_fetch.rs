@@ -10,7 +10,7 @@ use nom::Err::*;
 
 #[derive(PartialEq,Debug)]
 pub struct OffsetFetchRequest<'a> {
-  consumer_group: &'a [u8],
+  consumer_group: KafkaString<'a>,
   topics: Vec<TopicOffsetFetch<'a>>
 }
 
@@ -29,7 +29,7 @@ pub fn offset_fetch_request<'a>(input:&'a [u8]) -> IResult<&'a [u8], OffsetFetch
 
 #[derive(PartialEq,Debug)]
 pub struct TopicOffsetFetch<'a> {
-  topic_name: &'a [u8],
+  topic_name: KafkaString<'a>,
   partitions: Vec<PartitionOffsetFetch>
 }
 
@@ -79,10 +79,10 @@ OffsetFetchRequest => ConsumerGroup [TopicName [Partition]]
       ];
       let result = offset_fetch_request(input);
       let expected = OffsetFetchRequest {
-        consumer_group: &[][..],
+        consumer_group: "",
         topics: vec![
           TopicOffsetFetch {
-            topic_name: &[][..],
+            topic_name: "",
             partitions: vec![
               PartitionOffsetFetch {
                 partition: 0

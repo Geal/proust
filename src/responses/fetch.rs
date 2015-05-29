@@ -76,7 +76,7 @@ mod tests {
   fn ser_fetch_response_test() {
     let mut v: Vec<u8> = vec![];
     ser_fetch_response(vec![(
-      &[][..],
+      "",
       vec![(
         0,
         0,

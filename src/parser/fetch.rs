@@ -35,7 +35,7 @@ pub fn fetch_request<'a>(input:&'a [u8]) -> IResult<&'a [u8], FetchRequest<'a>> 
 
 #[derive(PartialEq,Debug)]
 pub struct TopicFetch<'a> {
-  topic_name: &'a [u8],
+  topic_name: KafkaString<'a>,
   partitions: Vec<PartitionFetch>
 }
 
@@ -100,7 +100,7 @@ mod tests {
         min_bytes: 0,
         topics: vec![
           TopicFetch {
-            topic_name: &[][..],
+            topic_name: "",
             partitions: vec![
               PartitionFetch {
                 partition: 0,

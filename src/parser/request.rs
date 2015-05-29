@@ -20,7 +20,7 @@ use parser::consumer_metadata::*;
 pub struct RequestMessage<'a> {
     api_version: i16,
     correlation_id: i32,
-    client_id: &'a [u8],
+    client_id: KafkaString<'a>,
     request_payload: RequestPayload<'a>
 }
 
@@ -118,7 +118,7 @@ mod tests {
       let expected = RequestMessage {
         api_version: 0,
         correlation_id: 0,
-        client_id: &[][..],
+        client_id: "",
         request_payload: RequestPayload::MetadataRequest(vec![])
       };
 
@@ -140,7 +140,7 @@ mod tests {
       let expected = RequestMessage {
         api_version: 0,
         correlation_id: 0,
-        client_id: &[][..],
+        client_id: "",
         request_payload: RequestPayload::MetadataRequest(vec![])
       };
 
