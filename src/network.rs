@@ -7,10 +7,15 @@ use mio::*;
 use mio::tcp::{TcpListener, TcpStream};
 use util::monitor;
 use storage::{self,storage};
+use std::marker::PhantomData;
 
 const SERVER: Token = Token(0);
 
-pub type Message = u8;
+#[derive(Debug)]
+pub enum Message {
+  Stop,
+  Data(Vec<u8>)
+}
 
 pub struct ListenerMessage {
   a: u8
@@ -56,7 +61,7 @@ impl Handler for MyHandler {
 
 pub fn start_listener(address: &str) -> (Sender<Message>,thread::JoinHandle<()>)  {
   let mut event_loop = EventLoop::new().unwrap();
-  let t2 = event_loop.channel().clone();
+  let t2 = event_loop.channel();
   let jg = thread::spawn(move || {
     let listener = TcpListener::bind("127.0.0.1:4242").unwrap();
     event_loop.register(&listener, SERVER).unwrap();

@@ -16,18 +16,25 @@ use std::sync::mpsc::{channel,Sender,Receiver};
 use std::thread::{self,Thread,Builder};
 use util::monitor;
 use mio;
-
+use network;
 
 pub type Request  = u8;
 pub type Response = u8;
 
-pub fn storage(out:&mio::Sender<Response>, name: &str) -> Sender<Request> {
+pub fn storage(out:&mio::Sender<network::Message>, name: &str) -> Sender<Request> {
   let (tx,rx) = channel::<u8>();
+  let mut v: Vec<u8> = Vec::new();
   let t2 = out.clone();
   thread::spawn(move || {
+    v.push(1);
+    v.push(2);
+    v.push(3);
     loop {
       if let Ok(count) = rx.recv() {
-        t2.send(count + 1);
+        //t2.send(count + 1);
+        //t2.send(network::Message::Data(Vec::new()));
+        t2.send(network::Message::Data(v.clone()));
+        //t2.send(network::Message::Data(&v[..]));
       }
     }
   });
