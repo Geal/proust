@@ -8,6 +8,8 @@ use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
 use nom::Err::*;
 
+use crc::{crc32, Hasher32};
+
 use parser::errors::*;
 
 #[derive(PartialEq, Debug)]
@@ -90,7 +92,6 @@ pub fn o_ms_message<'a>(input: &'a [u8]) -> IResult<&'a [u8], OMsMessage<'a>> {
 
 #[derive(PartialEq, Debug)]
 pub struct Message<'a> {
-  pub crc: i32,
   pub magic_byte: i8,
   pub attributes: i8,
   pub key: &'a [u8],
@@ -98,25 +99,42 @@ pub struct Message<'a> {
 }
 
 pub fn message<'a>(input: &'a [u8], size: i32) -> IResult<&'a [u8], Message<'a>> {
+  let sz = size as usize; // Only valid if size >= 0
+
   let message_bytes = |i: &'a [u8]| {
     if size >= 0 {
-      take!(i, size as usize)
+      take!(i, sz)
     } else {
       Error(Code(InputError::InvalidMessageSize.to_int()))
     }
   };
 
+
+  // TODO make the code more robust / simple
+  // Right now the code in `crc_parser` is based on asumptions valid only because `message_bytes`
+  // is before in the parser chain
+  let crc_parser = |i: &'a [u8]| {
+    // The message_bytes parser has already checked the bounds
+    let computed_crc = crc32::checksum_ieee(&input[4..sz]);
+    flat_map!(i, be_i32, |given_crc| {
+      if given_crc as u32 == computed_crc {
+        Done(i, given_crc as u32)
+      } else {
+        Error(Code(InputError::InvalidMessage.to_int()))
+      }
+    })
+  };
+
   flat_map!(input, message_bytes, |mb| {
     chain!(
       mb,
-      crc: be_i32 ~
+      crc_parser ~
       magic_byte: be_i8 ~
       attributes: be_i8 ~
       key: kafka_bytes ~
       value: kafka_bytes ~
       eof, || {
         Message {
-          crc: crc,
           magic_byte: magic_byte,
           attributes: attributes,
           key: key,
@@ -131,6 +149,9 @@ mod tests {
   use super::*;
   use nom::*;
   use nom::IResult::*;
+  use nom::Err::*;
+
+  use parser::errors::*;
 
   #[test]
   fn topic_message_set_tests() {
@@ -142,7 +163,7 @@ mod tests {
             0x00, 0x00, 0x00, 0x01, // message_set array length = 1
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
                 0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
-                    0x00, 0x00, 0x00, 0x00, // crc = 0
+                    0xe3, 0x8a, 0x68, 0x76, // crc
                     0x00,                   // magic_byte = 0
                     0x00,                   // attributes = 0
                     0x00, 0x00, 0x00, 0x00, // key = []
@@ -156,7 +177,6 @@ mod tests {
           message_set: vec![OMsMessage {
             offset: 1,
             message: Message {
-              crc: 0,
               magic_byte: 0,
               attributes: 0,
               key: &[][..],
@@ -177,7 +197,7 @@ mod tests {
         0x00, 0x00, 0x00, 0x01, // message_set array length = 1
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
             0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
-                0x00, 0x00, 0x00, 0x00, // crc = 0
+                0xe3, 0x8a, 0x68, 0x76, // crc
                 0x00,                   // magic_byte = 0
                 0x00,                   // attributes = 0
                 0x00, 0x00, 0x00, 0x00, // key = []
@@ -189,7 +209,6 @@ mod tests {
         message_set: vec![OMsMessage {
           offset: 1,
           message: Message {
-            crc: 0,
             magic_byte: 0,
             attributes: 0,
             key: &[][..],
@@ -207,7 +226,7 @@ mod tests {
         0x00, 0x00, 0x00, 0x01, // message_set array length = 1
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
             0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
-                0x00, 0x00, 0x00, 0x00, // crc = 0
+                0xe3, 0x8a, 0x68, 0x76, // crc
                 0x00,                   // magic_byte = 0
                 0x00,                   // attributes = 0
                 0x00, 0x00, 0x00, 0x00, // key = []
@@ -218,7 +237,6 @@ mod tests {
         OMsMessage {
           offset: 1,
           message: Message {
-            crc: 0,
             magic_byte: 0,
             attributes: 0,
             key: &[][..],
@@ -236,7 +254,7 @@ mod tests {
         0x00, 0x00, 0x00, 0x01, // message_set array length = 1
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
             0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
-                0x00, 0x00, 0x00, 0x00, // crc = 0
+                0xe3, 0x8a, 0x68, 0x76, // crc
                 0x00,                   // magic_byte = 0
                 0x00,                   // attributes = 0
                 0x00, 0x00, 0x00, 0x00, // key = []
@@ -248,7 +266,6 @@ mod tests {
         OMsMessage {
           offset: 1,
           message: Message {
-            crc: 0,
             magic_byte: 0,
             attributes: 0,
             key: &[][..],
@@ -266,7 +283,7 @@ mod tests {
         0x00, 0x00, 0x00, 0x01, // message_set array length = 1
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
             0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
-                0x00, 0x00, 0x00, 0x00, // crc = 0
+                0xe3, 0x8a, 0x68, 0x76, // crc
                 0x00,                   // magic_byte = 0
                 0x00,                   // attributes = 0
                 0x00, 0x00, 0x00, 0x00, // key = []
@@ -283,7 +300,7 @@ mod tests {
         0x00, 0x00, 0x00, 0x01, // message_set array length = 1
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
             0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
-                0x00, 0x00, 0x00, 0x00, // crc = 0
+                0xe3, 0x8a, 0x68, 0x76, // crc
                 0x00,                   // magic_byte = 0
                 0x00,                   // attributes = 0
                 0x00, 0x00, 0x00, 0x00, // key = []
@@ -297,7 +314,7 @@ mod tests {
   #[test]
   fn message_tests() {
       let input = &[
-        0x00, 0x00, 0x00, 0x00, // crc = 0
+        0xe3, 0x8a, 0x68, 0x76, // crc
         0x00,                   // magic_byte = 0
         0x00,                   // attributes = 0
         0x00, 0x00, 0x00, 0x00, // key = []
@@ -305,7 +322,6 @@ mod tests {
       ];
       let result = message(input, 14);
       let expected = Message {
-        crc: 0,
         magic_byte: 0,
         attributes: 0,
         key: &[][..],
@@ -318,7 +334,7 @@ mod tests {
   #[test]
   fn message_trailing_tests() {
       let input = &[
-        0x00, 0x00, 0x00, 0x00, // crc = 0
+        0xe3, 0x8a, 0x68, 0x76, // crc
         0x00,                   // magic_byte = 0
         0x00,                   // attributes = 0
         0x00, 0x00, 0x00, 0x00, // key = []
@@ -327,7 +343,6 @@ mod tests {
       ];
       let result = message(input, 14);
       let expected = Message {
-        crc: 0,
         magic_byte: 0,
         attributes: 0,
         key: &[][..],
@@ -340,7 +355,7 @@ mod tests {
   #[test]
   fn message_too_short_tests() {
       let input = &[
-        0x00, 0x00, 0x00, 0x00, // crc = 0
+        0xe3, 0x8a, 0x68, 0x76, // crc
         0x00,                   // magic_byte = 0
         0x00,                   // attributes = 0
         0x00, 0x00, 0x00, 0x00, // key = []
@@ -354,7 +369,7 @@ mod tests {
   #[test]
   fn message_too_long_tests() {
       let input = &[
-        0x00, 0x00, 0x00, 0x00, // crc = 0
+        0xe3, 0x8a, 0x68, 0x76, // crc
         0x00,                   // magic_byte = 0
         0x00,                   // attributes = 0
         0x00, 0x00, 0x00, 0x00, // key = []
@@ -362,6 +377,21 @@ mod tests {
       ];
       let result = message(input, 12);
 
-      assert_eq!(result, Incomplete(Needed::Size(4)));
+      // The CRC doesn't include the last two bytes so the check fails
+      assert_eq!(result, Error(Code(InputError::InvalidMessage.to_int())));
+  }
+
+  #[test]
+  fn message_invalid_crc_tests() {
+      let input = &[
+        0x00, 0x00, 0x00, 0x00, // invalid CRC
+        0x00,                   // magic_byte = 0
+        0x00,                   // attributes = 0
+        0x00, 0x00, 0x00, 0x00, // key = []
+        0x00, 0x00, 0x00, 0x00  // value = []
+      ];
+      let result = message(input, 14);
+
+      assert_eq!(result, Error(Code(InputError::InvalidMessage.to_int())));
   }
 }
