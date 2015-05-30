@@ -22,7 +22,7 @@ pub fn fetch_request<'a>(input:&'a [u8]) -> IResult<&'a [u8], FetchRequest<'a>> 
     replica_id: be_i32 ~
     max_wait_time: be_i32 ~
     min_bytes: be_i32 ~
-    topics: call!(|i| { kafka_array(i, topic_fetch) }), || {
+    topics: apply!(kafka_array, topic_fetch), || {
       FetchRequest {
         replica_id: replica_id,
         max_wait_time: max_wait_time,
@@ -43,7 +43,7 @@ pub fn topic_fetch<'a>(input:&'a [u8]) -> IResult<&'a [u8], TopicFetch<'a>> {
   chain!(
     input,
     topic_name: kafka_string ~
-    partitions: call!(|i| { kafka_array(i, partition_fetch) }), || {
+    partitions: apply!(kafka_array, partition_fetch), || {
       TopicFetch {
         topic_name: topic_name,
         partitions: partitions

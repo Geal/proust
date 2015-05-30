@@ -37,7 +37,7 @@ pub fn offset_commit_request_v0<'a>(input:&'a [u8]) -> IResult<&'a [u8], OffsetC
   chain!(
     input,
     consumer_group: kafka_string ~
-    topics: call!(|i| { kafka_array(i, topic_offset_commit_v0) }), || {
+    topics: apply!(kafka_array, topic_offset_commit_v0), || {
       OffsetCommitRequestV0 {
         consumer_group: consumer_group,
         topics: topics
@@ -56,7 +56,7 @@ pub fn topic_offset_commit_v0<'a>(input:&'a [u8]) -> IResult<&'a [u8], TopicOffs
   chain!(
     input,
     topic_name: kafka_string ~
-    partitions: call!(|i| { kafka_array(i, partition_offset_commit_v0) }), || {
+    partitions: apply!(kafka_array, partition_offset_commit_v0), || {
       TopicOffsetCommitV0 {
         topic_name: topic_name,
         partitions: partitions
@@ -102,7 +102,7 @@ pub fn offset_commit_request_v1<'a>(input:&'a [u8]) -> IResult<&'a [u8], OffsetC
     consumer_group: kafka_string ~
     consumer_group_generation_id: be_i32 ~
     consumer_id: kafka_string ~
-    topics: call!(|i| { kafka_array(i, topic_offset_commit_v1) }), || {
+    topics: apply!(kafka_array, topic_offset_commit_v1), || {
       OffsetCommitRequestV1 {
         consumer_group: consumer_group,
         consumer_group_generation_id: consumer_group_generation_id,
@@ -123,7 +123,7 @@ pub fn topic_offset_commit_v1<'a>(input:&'a [u8]) -> IResult<&'a [u8], TopicOffs
   chain!(
     input,
     topic_name: kafka_string ~
-    partitions: call!(|i| { kafka_array(i, partition_offset_commit_v1) }), || {
+    partitions: apply!(kafka_array, partition_offset_commit_v1), || {
       TopicOffsetCommitV1 {
         topic_name: topic_name,
         partitions: partitions
@@ -174,7 +174,7 @@ pub fn offset_commit_request_v2<'a>(input:&'a [u8]) -> IResult<&'a [u8], OffsetC
     consumer_group_generation_id: be_i32 ~
     consumer_id: kafka_string ~
     retention_time: be_i64 ~
-    topics: call!(|i| { kafka_array(i, topic_offset_commit_v0) }), || {
+    topics: apply!(kafka_array, topic_offset_commit_v0), || {
       OffsetCommitRequestV2 {
         consumer_group: consumer_group,
         consumer_group_generation_id: consumer_group_generation_id,

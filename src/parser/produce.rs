@@ -21,7 +21,7 @@ pub fn produce_request<'a>(input:&'a [u8]) -> IResult<&'a [u8], ProduceRequest<'
     input,
     acks: be_i16 ~
     timeout: be_i32 ~
-    topics: call!(|i| { kafka_array(i, topic_message_set) }), || {
+    topics: apply!(kafka_array, topic_message_set), || {
       ProduceRequest {
         required_acks: acks,
         timeout: timeout,

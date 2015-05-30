@@ -20,7 +20,7 @@ pub fn topic_message_set<'a>(input: &'a [u8]) -> IResult<&'a [u8], TopicMessageS
   chain!(
     input,
     topic_name: kafka_string ~
-    partitions: call!(|i| { kafka_array(i, partition_message_set) }), || {
+    partitions: apply!(kafka_array, partition_message_set), || {
       TopicMessageSet {
         topic_name: topic_name,
         partitions: partitions
@@ -39,7 +39,7 @@ pub fn partition_message_set<'a>(input: &'a [u8]) -> IResult<&'a [u8], Partition
     input,
     partition: be_i32 ~
     message_set_size: be_i32 ~
-    message_set: call!(|i| { message_set(message_set_size, i) }),
+    message_set: apply!(message_set, message_set_size),
     || {
       PartitionMessageSet {
         partition: partition,
@@ -50,7 +50,7 @@ pub fn partition_message_set<'a>(input: &'a [u8]) -> IResult<&'a [u8], Partition
 
 pub type MessageSet<'a> = Vec<OMsMessage<'a>>;
 
-pub fn message_set<'a>(size: i32, input: &'a [u8]) -> IResult<&'a [u8], MessageSet<'a>> {
+pub fn message_set<'a>(input: &'a [u8], size: i32) -> IResult<&'a [u8], MessageSet<'a>> {
   let ms_bytes = |i: &'a [u8]| {
     if size >= 0 {
       take!(i, size as usize)
@@ -62,7 +62,7 @@ pub fn message_set<'a>(size: i32, input: &'a [u8]) -> IResult<&'a [u8], MessageS
   flat_map!(input, ms_bytes, |msb| {
     chain!(
       msb,
-      ms: call!(|i| { kafka_array(i, o_ms_message) }) ~
+      ms: apply!(kafka_array, o_ms_message) ~
       eof, || {
         ms
       })
@@ -80,7 +80,7 @@ pub fn o_ms_message<'a>(input: &'a [u8]) -> IResult<&'a [u8], OMsMessage<'a>> {
     input,
     offset: be_i64 ~
     message_size: be_i32 ~
-    message: call!(|i| { message(message_size, i) }), || {
+    message: apply!(message, message_size), || {
       OMsMessage {
         offset: offset,
         message: message
@@ -97,7 +97,7 @@ pub struct Message<'a> {
   pub value: &'a [u8]
 }
 
-pub fn message<'a>(size: i32, input: &'a [u8]) -> IResult<&'a [u8], Message<'a>> {
+pub fn message<'a>(input: &'a [u8], size: i32) -> IResult<&'a [u8], Message<'a>> {
   let message_bytes = |i: &'a [u8]| {
     if size >= 0 {
       take!(i, size as usize)
@@ -213,7 +213,7 @@ mod tests {
                 0x00, 0x00, 0x00, 0x00, // key = []
                 0x00, 0x00, 0x00, 0x00  // value = []
       ];
-      let result = message_set(30, input);
+      let result = message_set(input, 30);
       let expected = vec![
         OMsMessage {
           offset: 1,
@@ -243,7 +243,7 @@ mod tests {
                 0x00, 0x00, 0x00, 0x00,  // value = []
         0x00, 0x00, 0x00, 0x00, // trailing
       ];
-      let result = message_set(30, input);
+      let result = message_set(input, 30);
       let expected = vec![
         OMsMessage {
           offset: 1,
@@ -272,7 +272,7 @@ mod tests {
                 0x00, 0x00, 0x00, 0x00, // key = []
                 0x00, 0x00, 0x00, 0x00  // value = []
       ];
-      let result = message_set(32, input);
+      let result = message_set(input, 32);
 
       assert_eq!(result, Incomplete(Needed::Size(32)));
   }
@@ -289,7 +289,7 @@ mod tests {
                 0x00, 0x00, 0x00, 0x00, // key = []
                 0x00, 0x00, 0x00, 0x00  // value = []
       ];
-      let result = message_set(28, input);
+      let result = message_set(input, 28);
 
       assert_eq!(result, Incomplete(Needed::Unknown));
   }
@@ -303,7 +303,7 @@ mod tests {
         0x00, 0x00, 0x00, 0x00, // key = []
         0x00, 0x00, 0x00, 0x00  // value = []
       ];
-      let result = message(14, input);
+      let result = message(input, 14);
       let expected = Message {
         crc: 0,
         magic_byte: 0,
@@ -325,7 +325,7 @@ mod tests {
         0x00, 0x00, 0x00, 0x00, // value = []
         0x00, 0x00, 0x00, 0x00  // trailing data
       ];
-      let result = message(14, input);
+      let result = message(input, 14);
       let expected = Message {
         crc: 0,
         magic_byte: 0,
@@ -346,7 +346,7 @@ mod tests {
         0x00, 0x00, 0x00, 0x00, // key = []
         0x00, 0x00, 0x00, 0x00  // value = []
       ];
-      let result = message(18, input);
+      let result = message(input, 18);
 
       assert_eq!(result, Incomplete(Needed::Size(18)));
   }
@@ -360,7 +360,7 @@ mod tests {
         0x00, 0x00, 0x00, 0x00, // key = []
         0x00, 0x00, 0x00, 0x00  // value = []
       ];
-      let result = message(12, input);
+      let result = message(input, 12);
 
       assert_eq!(result, Incomplete(Needed::Size(4)));
   }

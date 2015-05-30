@@ -18,7 +18,7 @@ pub fn offset_request<'a>(input:&'a [u8]) -> IResult<&'a [u8], OffsetRequest<'a>
   chain!(
     input,
     replica_id: be_i32 ~
-    topics: call!(|i| { kafka_array(i, topic_offset) }), || {
+    topics: apply!(kafka_array, topic_offset), || {
       OffsetRequest {
         replica_id: replica_id,
         topics: topics
@@ -37,7 +37,7 @@ pub fn topic_offset<'a>(input:&'a [u8]) -> IResult<&'a [u8], TopicOffset<'a>> {
   chain!(
     input,
     topic_name: kafka_string ~
-    partitions: call!(|i| { kafka_array(i, partition_offset) }), || {
+    partitions: apply!(kafka_array, partition_offset), || {
       TopicOffset {
         topic_name: topic_name,
         partitions: partitions

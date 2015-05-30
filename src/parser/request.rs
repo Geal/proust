@@ -37,7 +37,7 @@ pub enum RequestPayload<'a> {
     ConsumerMetadataRequest(ConsumerMetadataRequest<'a>)
 }
 
-pub fn parse_request_payload<'a>(api_version: i16, api_key: i16, input:&'a [u8]) -> IResult<&'a [u8], RequestPayload<'a>> {
+pub fn parse_request_payload<'a>(input:&'a [u8], api_version: i16, api_key: i16) -> IResult<&'a [u8], RequestPayload<'a>> {
     match api_key {
         0  => map!(input, produce_request, |p| { RequestPayload::ProduceRequest(p) }),
         1  => map!(input, fetch_request, |p| { RequestPayload::FetchRequest(p) }),
@@ -84,7 +84,7 @@ pub fn request_message<'a>(input:&'a [u8]) -> IResult<&'a [u8], RequestMessage<'
           version: be_i16 ~
           correlation_id: be_i32 ~
           client_id: kafka_string ~
-          payload: call!(|i| { parse_request_payload(version, key, i) }) ~
+          payload: apply!(parse_request_payload, version, key) ~
           eof, || {
               RequestMessage {
                   api_version: version,
