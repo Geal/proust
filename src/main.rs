@@ -18,7 +18,6 @@ mod network;
 mod responses;
 use responses::response::*;
 
-mod parser;
 mod storage;
 mod network;
 mod util;
