@@ -89,9 +89,9 @@ impl Handler for MyHandler {
       SERVER => {
         self.accept(event_loop);
       },
-      Token(x) => {
-        println!("client n°{:?} readable", x);
-        if let Some(client) = self.clients.get_mut(&x) {
+      Token(tk) => {
+        println!("client n°{:?} readable", tk);
+        if let Some(client) = self.clients.get_mut(&tk) {
           let mut read_buf = ByteBuf::mut_with_capacity(2048);
           match client.read(&mut read_buf) {
             Ok(a) => {
@@ -109,7 +109,7 @@ impl Handler for MyHandler {
                   match e.kind() {
                     ErrorKind::BrokenPipe => {
                       println!("broken pipe, removing client");
-                      event_loop.channel().send(Message::Close(x));
+                      event_loop.channel().send(Message::Close(tk));
                     },
                     _ => println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind())
                   }
@@ -120,7 +120,7 @@ impl Handler for MyHandler {
               match e.kind() {
                 ErrorKind::BrokenPipe => {
                   println!("broken pipe, removing client");
-                  event_loop.channel().send(Message::Close(x));
+                  event_loop.channel().send(Message::Close(tk));
                 },
                 _ => println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind())
               }
