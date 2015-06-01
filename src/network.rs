@@ -6,7 +6,7 @@ use std::rt::unwind::try;
 use std::collections::HashMap;
 
 use std::str;
-use std::io::{Read,ErrorKind};
+use std::io::{self,Read,ErrorKind};
 use std::error::Error;
 //use std::net::TcpStream;
 use mio::tcp::*;
@@ -117,7 +117,13 @@ impl Handler for MyHandler {
               }
             },
             Err(e) => {
-              println!("Err{:?}", e);
+              match e.kind() {
+                ErrorKind::BrokenPipe => {
+                  println!("broken pipe, removing client");
+                  event_loop.channel().send(Message::Close(x));
+                },
+                _ => println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind())
+              }
             }
           }
         }
