@@ -48,6 +48,18 @@ pub struct MyHandler {
 }
 
 impl MyHandler {
+  fn accept(&mut self, event_loop: &mut EventLoop<MyHandler>) {
+    if let Ok(Some(stream)) = self.listener.accept() {
+      let index = self.next_token();
+      println!("got client n°{:?}", index);
+      let token = Token(index);
+      event_loop.register_opt(&stream, token, Interest::all(), PollOpt::edge());
+      self.clients.insert(index, stream);
+    } else {
+      println!("invalid connection");
+    }
+  }
+
   fn next_token(&mut self) -> usize {
     match self.available_tokens.pop() {
       None        => {
@@ -75,15 +87,7 @@ impl Handler for MyHandler {
     println!("readable");
     match token {
       SERVER => {
-        if let Ok(Some(stream)) = self.listener.accept() {
-          let index = self.next_token();
-          println!("got client n°{:?}", index);
-          let token = Token(index);
-          event_loop.register_opt(&stream, token, Interest::all(), PollOpt::edge());
-          self.clients.insert(index, stream);
-        } else {
-          println!("invalid connection");
-        }
+        self.accept(event_loop);
       },
       Token(x) => {
         println!("client n°{:?} readable", x);
