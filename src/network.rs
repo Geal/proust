@@ -38,7 +38,7 @@ pub struct Listener {
   rx: Receiver<u8>
 }
 
-pub struct MyHandler {
+pub struct KafkaHandler {
   listener:    NonBlock<TcpListener>,
   storage_tx : mpsc::Sender<storage::Request>,
   counter:     u8,
@@ -47,8 +47,8 @@ pub struct MyHandler {
   available_tokens: Vec<usize>
 }
 
-impl MyHandler {
-  fn accept(&mut self, event_loop: &mut EventLoop<MyHandler>) {
+impl KafkaHandler {
+  fn accept(&mut self, event_loop: &mut EventLoop<KafkaHandler>) {
     if let Ok(Some(stream)) = self.listener.accept() {
       let index = self.next_token();
       println!("got client n°{:?}", index);
@@ -79,11 +79,11 @@ impl MyHandler {
   }
 }
 
-impl Handler for MyHandler {
+impl Handler for KafkaHandler {
   type Timeout = ();
   type Message = Message;
 
-  fn readable(&mut self, event_loop: &mut EventLoop<MyHandler>, token: Token, _: ReadHint) {
+  fn readable(&mut self, event_loop: &mut EventLoop<KafkaHandler>, token: Token, _: ReadHint) {
     println!("readable");
     match token {
       SERVER => {
@@ -143,7 +143,7 @@ impl Handler for MyHandler {
     }
   }
 
-  fn notify(&mut self, _reactor: &mut EventLoop<MyHandler>, msg: Message) {
+  fn notify(&mut self, _reactor: &mut EventLoop<KafkaHandler>, msg: Message) {
     println!("notify: {:?}", msg);
     match msg {
       Message::Close(token) => {
@@ -172,7 +172,7 @@ pub fn start_listener(address: &str) -> (Sender<Message>,thread::JoinHandle<()>)
     event_loop.register(&listener, SERVER).unwrap();
     let t = storage(&event_loop.channel(), "pouet");
 
-    event_loop.run(&mut MyHandler {
+    event_loop.run(&mut KafkaHandler {
       listener: listener,
       storage_tx: t,
       counter: 0,
