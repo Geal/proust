@@ -3,11 +3,13 @@ use std::string::String;
 use std::sync::mpsc;
 use std::sync::mpsc::{channel,Receiver};
 use std::rt::unwind::try;
+use std::collections::HashMap;
 
 use std::str;
-use std::io::Read;
+use std::io::{Read,ErrorKind};
+use std::error::Error;
 //use std::net::TcpStream;
-use mio::tcp::*;//{TcpListener};
+use mio::tcp::*;
 use mio::*;
 use mio::buf::{ByteBuf};
 use util::monitor;
@@ -15,12 +17,12 @@ use storage::{self,storage};
 use std::marker::PhantomData;
 
 const SERVER: Token = Token(0);
-const CLIENT: Token = Token(1);
 
 #[derive(Debug)]
 pub enum Message {
   Stop,
-  Data(Vec<u8>)
+  Data(Vec<u8>),
+  Close(usize)
 }
 
 struct Client {
@@ -41,9 +43,29 @@ pub struct MyHandler {
   storage_tx : mpsc::Sender<storage::Request>,
   counter:     u8,
   token_index: usize,
-  clients:     Vec<NonBlock<TcpStream>>
+  clients:     HashMap<usize, NonBlock<TcpStream>>,
+  available_tokens: Vec<usize>
 }
 
+impl MyHandler {
+  fn next_token(&mut self) -> usize {
+    match self.available_tokens.pop() {
+      None        => {
+        let index = self.token_index;
+        self.token_index += 1;
+        index
+      },
+      Some(index) => {
+        index
+      }
+    }
+  }
+
+  fn close(&mut self, token: usize) {
+    self.clients.remove(&token);
+    self.available_tokens.push(token);
+  }
+}
 
 impl Handler for MyHandler {
   type Timeout = ();
@@ -53,43 +75,49 @@ impl Handler for MyHandler {
     println!("readable");
     match token {
       SERVER => {
-        let s = self as &mut MyHandler;
-        if let Ok(Some(stream)) = s.listener.accept() {
-          println!("got client n°{:?}", s.token_index);
-          //s.storage_tx.send(s.counter)
-          //let index = s.token_index;
-          //let token = Token(index);
-          //s.token_index += 1;
-          let i = s.clients.len() +1;
-          let token = Token(i);
+        if let Ok(Some(stream)) = self.listener.accept() {
+          let index = self.next_token();
+          println!("got client n°{:?}", index);
+          let token = Token(index);
           event_loop.register_opt(&stream, token, Interest::all(), PollOpt::edge());
-          event_loop.register(&stream, token);
-          s.clients.push(stream);
-          /*s.counter = s.counter + 1;
-          if s.counter > 1 {
-          panic!();
-          }*/
+          self.clients.insert(index, stream);
         } else {
           println!("invalid connection");
         }
       },
       Token(x) => {
         println!("client n°{:?} readable", x);
-        let client = &mut self.clients[x - 1];
-        //let mut buf = buf::ByteBuf::mut_with_capacity(1024);
-        // let mut v: Vec<u8> = Vec::with_capacity(2048);
-        let mut read_buf = ByteBuf::mut_with_capacity(2048);
-        if let Ok(_) =  client.read(&mut read_buf) {
-          let mut buf = read_buf.flip();
-          let mut text = String::new();
-          buf.read_to_string(&mut text);
-          println!("Received: {}", text);
+        if let Some(client) = self.clients.get_mut(&x) {
+          let mut read_buf = ByteBuf::mut_with_capacity(2048);
+          match client.read(&mut read_buf) {
+            Ok(a) => {
+              println!("Ok{:?}", a);
+              let mut buf = read_buf.flip();
+              let mut text = String::new();
+              buf.read_to_string(&mut text);
+              println!("Received: {}", text);
+              let msg = "hello\n".as_bytes();
+              match client.write_slice(msg) {
+                Ok(o)  => {
+                  println!("sent message: {:?}", o);
+                },
+                Err(e) => {
+                  match e.kind() {
+                    ErrorKind::BrokenPipe => {
+                      println!("broken pipe, removing client");
+                      event_loop.channel().send(Message::Close(x));
+                    },
+                    _ => println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind())
+                  }
+                }
+              }
+            },
+            Err(e) => {
+              println!("Err{:?}", e);
+            }
+          }
         }
-        //let mut sl = [0; 2048];
-        //read_buf.read_slice(sl);
-        //println!("read: {:?}", str::from_utf8(sl));
       }
-      //_ => panic!("unexpected token"),
     }
   }
 
@@ -107,6 +135,13 @@ impl Handler for MyHandler {
 
   fn notify(&mut self, _reactor: &mut EventLoop<MyHandler>, msg: Message) {
     println!("notify: {:?}", msg);
+    match msg {
+      Message::Close(token) => {
+        println!("closing client n°{:?}", token);
+        self.close(token)
+      },
+      _                     => println!("unknown message: {:?}", msg)
+    }
   }
 
 
@@ -127,7 +162,14 @@ pub fn start_listener(address: &str) -> (Sender<Message>,thread::JoinHandle<()>)
     event_loop.register(&listener, SERVER).unwrap();
     let t = storage(&event_loop.channel(), "pouet");
 
-    event_loop.run(&mut MyHandler {listener: listener, storage_tx: t, counter: 0, token_index: 0, clients: Vec::new()}).unwrap();
+    event_loop.run(&mut MyHandler {
+      listener: listener,
+      storage_tx: t,
+      counter: 0,
+      token_index: 1, // 0 is the server socket
+      clients: HashMap::new(),
+      available_tokens: Vec::new()
+    }).unwrap();
 
   });
 
