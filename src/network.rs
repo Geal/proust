@@ -25,6 +25,13 @@ pub enum Message {
   Close(usize)
 }
 
+enum ClientErr {
+  Continue,
+  ShouldClose
+}
+
+type ClientResult = Result<usize, ClientErr>;
+
 enum ClientState {
   Normal,
   Await(usize)
@@ -56,9 +63,8 @@ pub struct KafkaHandler {
 }
 
 impl Client {
-  fn read_size(&mut self) -> Result<usize, io::Error> {
+  fn read_size(&mut self) -> ClientResult {
     let mut size_buf = ByteBuf::mut_with_capacity(4);
-    //if let Ok(Some(size)) = client.socket.read(&mut size_buf) {
     match self.socket.read(&mut size_buf) {
       Ok(Some(size)) => {
         // FIXME: should parse 32 size here
@@ -66,12 +72,23 @@ impl Client {
         let sz = b.read_byte().unwrap() as usize;
         Ok(sz)
       },
-      Ok(None) => Ok(0),
-      Err(e) => Err(e)
+      Ok(None) => Err(ClientErr::Continue),
+      Err(e) => {
+        match e.kind() {
+          ErrorKind::BrokenPipe => {
+            println!("broken pipe, removing client");
+            Err(ClientErr::ShouldClose)
+          },
+          _ => {
+            println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind());
+            Err(ClientErr::Continue)
+          }
+        }
+      }
     }
   }
 
-  fn read_to_buf(&mut self, event_loop: &mut EventLoop<KafkaHandler>, buffer: &mut MutByteBuf) -> Option<usize> {
+  fn read_to_buf(&mut self, buffer: &mut MutByteBuf) -> ClientResult {
     let mut bytes_read: usize = 0;
     loop {
       println!("remaining space: {}", buffer.remaining());
@@ -90,29 +107,36 @@ impl Client {
           match e.kind() {
             ErrorKind::BrokenPipe => {
               println!("broken pipe, removing client");
-              event_loop.channel().send(Message::Close(self.token));
+              return Err(ClientErr::ShouldClose)
             },
-            _ => println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind())
+            _ => {
+              println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind());
+              return Err(ClientErr::Continue)
+            }
           }
-          return None;
         }
       }
     }
-    Some(bytes_read)
+    Ok(bytes_read)
   }
 
-  fn write(&mut self, event_loop: &mut EventLoop<KafkaHandler>, msg: &[u8]) {
+  fn write(&mut self, msg: &[u8]) -> ClientResult {
     match self.socket.write_slice(msg) {
-      Ok(o)  => {
+      Ok(Some(o))  => {
         println!("sent message: {:?}", o);
+        Ok(o)
       },
+      Ok(None) => Err(ClientErr::Continue),
       Err(e) => {
         match e.kind() {
           ErrorKind::BrokenPipe => {
             println!("broken pipe, removing client");
-            event_loop.channel().send(Message::Close(self.token));
+            Err(ClientErr::ShouldClose)
           },
-          _ => println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind())
+          _ => {
+            println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind());
+            Err(ClientErr::Continue)
+          }
         }
       }
     }
@@ -137,16 +161,25 @@ impl KafkaHandler {
     if let Some(mut client) = self.clients.get_mut(&tk) {
       match client.state {
         ClientState::Normal => {
-          if let Ok(sz) = client.read_size() {
-            println!("allocating buffer of size {}", sz);
-            let mut read_buf = ByteBuf::mut_with_capacity(sz);
+          //if let Ok(sz) = client.read_size() {
+          match client.read_size() {
+            Ok(sz) => {
+              println!("allocating buffer of size {}", sz);
+              let mut read_buf = ByteBuf::mut_with_capacity(sz);
 
-            client.read_to_buf(event_loop, &mut read_buf);
+              if let Err(ClientErr::ShouldClose) = client.read_to_buf(&mut read_buf) {
+                event_loop.channel().send(Message::Close(tk));
+              }
 
-            let mut text = String::new();
-            let mut buf = read_buf.flip();
-            buf.read_to_string(&mut text);
-            println!("content ({} bytes): {}", text.len(), text);
+              let mut text = String::new();
+              let mut buf = read_buf.flip();
+              buf.read_to_string(&mut text);
+              println!("content ({} bytes): {}", text.len(), text);
+            },
+            Err(ClientErr::ShouldClose) => {
+              event_loop.channel().send(Message::Close(tk));
+            },
+            _ => {}
           }
         },
         ClientState::Await(nb) => println!("nb: {}", nb)
