@@ -11,7 +11,7 @@ use std::error::Error;
 //use std::net::TcpStream;
 use mio::tcp::*;
 use mio::*;
-use mio::buf::{ByteBuf,MutByteBuf,SliceBuf,MutSliceBuf};
+use mio::buf::{RingBuf,ByteBuf,MutByteBuf,SliceBuf,MutSliceBuf};
 use util::monitor;
 use storage::{self,storage};
 use std::marker::PhantomData;
@@ -41,7 +41,7 @@ struct Client {
   socket: NonBlock<TcpStream>,
   state:  ClientState,
   token:  usize,
-  buffer: Option<ByteBuf>
+  buffer: MutByteBuf
 }
 
 pub struct ListenerMessage {
@@ -88,11 +88,12 @@ impl Client {
     }
   }
 
-  fn read_to_buf(&mut self, buffer: &mut MutByteBuf) -> ClientResult {
+  //fn read_to_buf(&mut self, buffer: &mut MutByteBuf) -> ClientResult {
+  fn read_to_buf(&mut self) -> ClientResult {
     let mut bytes_read: usize = 0;
     loop {
-      println!("remaining space: {}", buffer.remaining());
-      match self.socket.read(buffer) {
+      println!("remaining space: {}", self.buffer.remaining());
+      match self.socket.read(&mut self.buffer) {
         Ok(a) => {
           if a == None || a == Some(0) {
             println!("breaking because a == {:?}", a);
@@ -141,7 +142,26 @@ impl Client {
       }
     }
   }
+
+  /*
+  fn get_string(&mut self) -> String {
+    let mut text = String::new();
+    let mut buf = self.buffer.flip();
+    buf.read_to_string(&mut text);
+    text
+  }
+  */
+  /*fn give_buffer(&mut self) -> Option<MutByteBuf> {
+    if let Some(buf) = self.buffer {
+    self.buffer = None;
+    Some(buf)
+    } else {
+    None
+    }
+    }
+  }*/
 }
+
 
 impl KafkaHandler {
   fn accept(&mut self, event_loop: &mut EventLoop<KafkaHandler>) {
@@ -150,7 +170,7 @@ impl KafkaHandler {
       println!("got client n°{:?}", index);
       let token = Token(index);
       event_loop.register_opt(&stream, token, Interest::all(), PollOpt::edge());
-      self.clients.insert(index, Client{ socket:stream, state: ClientState::Normal, token: index, buffer: None });
+      self.clients.insert(index, Client{ socket:stream, state: ClientState::Normal, token: index, buffer: ByteBuf::mut_with_capacity(0) });
     } else {
       println!("invalid connection");
     }
@@ -167,14 +187,25 @@ impl KafkaHandler {
               println!("allocating buffer of size {}", sz);
               let mut read_buf = ByteBuf::mut_with_capacity(sz);
 
-              if let Err(ClientErr::ShouldClose) = client.read_to_buf(&mut read_buf) {
+              let capacity = read_buf.remaining();
+              client.buffer = read_buf;
+              if let Err(ClientErr::ShouldClose) = client.read_to_buf() {
                 event_loop.channel().send(Message::Close(tk));
               }
 
-              let mut text = String::new();
-              let mut buf = read_buf.flip();
-              buf.read_to_string(&mut text);
-              println!("content ({} bytes): {}", text.len(), text);
+              if capacity - client.buffer.remaining() < sz {
+                client.state = ClientState::Await(sz - (capacity - client.buffer.remaining()));
+              } else {
+                /* FIXME
+                let mut text = String::new();
+                let buf = client.buffer.take().unwrap();
+                buf.read_to_string(&mut text);
+                println!("content ({} bytes): {}", text.len(), text);
+                */
+                /*let text = client.get_string();
+                println!("content ({} bytes): {}", text.len(), text);
+                */
+              }
             },
             Err(ClientErr::ShouldClose) => {
               event_loop.channel().send(Message::Close(tk));
@@ -182,10 +213,34 @@ impl KafkaHandler {
             _ => {}
           }
         },
-        ClientState::Await(nb) => println!("nb: {}", nb)
+        ClientState::Await(sz) => {
+          println!("needs {} bytes", sz);
+          let capacity = client.buffer.remaining();
+
+          if let Err(ClientErr::ShouldClose) = client.read_to_buf() { //&mut read_buf) {
+            event_loop.channel().send(Message::Close(tk));
+          }
+          if capacity - client.buffer.remaining() < sz {
+            client.state = ClientState::Await(sz - (capacity - client.buffer.remaining()));
+          } else {
+            /* FIXME
+            let mut text = String::new();
+            //let mut buf = buffer.flip();
+            let buf = client.buffer.take().unwrap();
+            buf.read_to_string(&mut text);
+            //println!("content ({} bytes): {}", text.len(), text);
+            //client.buffer.buf.read_to_string(&mut text);
+            println!("content ({} bytes): {}", text.len(), text);
+            //println!("content: {:?}", client.buffer.mut_bytes());
+            */
+            /*let text = client.get_string();
+            println!("content ({} bytes): {}", text.len(), text);
+            */
+          }
+          }
+        }
+        }
       }
-    }
-  }
 
   fn next_token(&mut self) -> usize {
     match self.available_tokens.pop() {
