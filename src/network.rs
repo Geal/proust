@@ -32,7 +32,8 @@ enum ClientState {
 
 struct Client {
   socket: NonBlock<TcpStream>,
-  state: ClientState,
+  state:  ClientState,
+  token:  usize,
   buffer: Option<ByteBuf>
 }
 
@@ -55,7 +56,7 @@ pub struct KafkaHandler {
 }
 
 impl Client {
-  fn read_to_buf(&mut self, event_loop: &mut EventLoop<KafkaHandler>, tk: usize, buffer: &mut MutByteBuf) -> Option<usize> {
+  fn read_to_buf(&mut self, event_loop: &mut EventLoop<KafkaHandler>, buffer: &mut MutByteBuf) -> Option<usize> {
     let mut bytes_read: usize = 0;
     loop {
       println!("remaining space: {}", buffer.remaining());
@@ -74,7 +75,7 @@ impl Client {
           match e.kind() {
             ErrorKind::BrokenPipe => {
               println!("broken pipe, removing client");
-              event_loop.channel().send(Message::Close(tk));
+              event_loop.channel().send(Message::Close(self.token));
             },
             _ => println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind())
           }
@@ -85,7 +86,7 @@ impl Client {
     Some(bytes_read)
   }
 
-  fn write(&mut self, event_loop: &mut EventLoop<KafkaHandler>, msg: &[u8], tk: usize) {
+  fn write(&mut self, event_loop: &mut EventLoop<KafkaHandler>, msg: &[u8]) {
     match self.socket.write_slice(msg) {
       Ok(o)  => {
         println!("sent message: {:?}", o);
@@ -94,7 +95,7 @@ impl Client {
         match e.kind() {
           ErrorKind::BrokenPipe => {
             println!("broken pipe, removing client");
-            event_loop.channel().send(Message::Close(tk));
+            event_loop.channel().send(Message::Close(self.token));
           },
           _ => println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind())
         }
@@ -110,7 +111,7 @@ impl KafkaHandler {
       println!("got client n°{:?}", index);
       let token = Token(index);
       event_loop.register_opt(&stream, token, Interest::all(), PollOpt::edge());
-      self.clients.insert(index, Client{ socket:stream, state: ClientState::Normal, buffer: None });
+      self.clients.insert(index, Client{ socket:stream, state: ClientState::Normal, token: index, buffer: None });
     } else {
       println!("invalid connection");
     }
@@ -129,7 +130,7 @@ impl KafkaHandler {
             println!("allocating buffer of size {}", sz);
             let mut read_buf = ByteBuf::mut_with_capacity(sz);
 
-            client.read_to_buf(event_loop, tk, &mut read_buf);
+            client.read_to_buf(event_loop, &mut read_buf);
 
             let mut text = String::new();
             let mut buf = read_buf.flip();
