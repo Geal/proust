@@ -56,6 +56,21 @@ pub struct KafkaHandler {
 }
 
 impl Client {
+  fn read_size(&mut self) -> Result<usize, io::Error> {
+    let mut size_buf = ByteBuf::mut_with_capacity(4);
+    //if let Ok(Some(size)) = client.socket.read(&mut size_buf) {
+    match self.socket.read(&mut size_buf) {
+      Ok(Some(size)) => {
+        // FIXME: should parse 32 size here
+        let mut b = size_buf.flip();
+        let sz = b.read_byte().unwrap() as usize;
+        Ok(sz)
+      },
+      Ok(None) => Ok(0),
+      Err(e) => Err(e)
+    }
+  }
+
   fn read_to_buf(&mut self, event_loop: &mut EventLoop<KafkaHandler>, buffer: &mut MutByteBuf) -> Option<usize> {
     let mut bytes_read: usize = 0;
     loop {
@@ -122,11 +137,7 @@ impl KafkaHandler {
     if let Some(mut client) = self.clients.get_mut(&tk) {
       match client.state {
         ClientState::Normal => {
-          let mut size_buf = ByteBuf::mut_with_capacity(4);
-          if let Ok(Some(size)) = client.socket.read(&mut size_buf) {
-            // FIXME: should parse 32 size here
-            let mut b = size_buf.flip();
-            let sz = b.read_byte().unwrap() as usize;
+          if let Ok(sz) = client.read_size() {
             println!("allocating buffer of size {}", sz);
             let mut read_buf = ByteBuf::mut_with_capacity(sz);
 
