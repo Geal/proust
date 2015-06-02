@@ -60,6 +60,47 @@ impl KafkaHandler {
     }
   }
 
+  fn client_read(&mut self, event_loop: &mut EventLoop<KafkaHandler>, tk: usize) {
+    println!("client n°{:?} readable", tk);
+    if let Some(client) = self.clients.get_mut(&tk) {
+      let mut read_buf = ByteBuf::mut_with_capacity(16);
+      match client.read(&mut read_buf) {
+        Ok(a) => {
+          println!("Ok{:?}", a);
+          let mut buf = read_buf.flip();
+          let mut text = String::new();
+          buf.read_to_string(&mut text);
+          println!("Received: {}", text);
+          let msg = "hello\n".as_bytes();
+          match client.write_slice(msg) {
+            Ok(o)  => {
+              println!("sent message: {:?}", o);
+            },
+            Err(e) => {
+              match e.kind() {
+                ErrorKind::BrokenPipe => {
+                  println!("broken pipe, removing client");
+                  event_loop.channel().send(Message::Close(tk));
+                },
+                _ => println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind())
+              }
+            }
+          }
+        },
+        Err(e) => {
+          match e.kind() {
+            ErrorKind::BrokenPipe => {
+              println!("broken pipe, removing client");
+              event_loop.channel().send(Message::Close(tk));
+            },
+            _ => println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind())
+          }
+        }
+      }
+    }
+
+  }
+
   fn next_token(&mut self) -> usize {
     match self.available_tokens.pop() {
       None        => {
@@ -90,43 +131,7 @@ impl Handler for KafkaHandler {
         self.accept(event_loop);
       },
       Token(tk) => {
-        println!("client n°{:?} readable", tk);
-        if let Some(client) = self.clients.get_mut(&tk) {
-          let mut read_buf = ByteBuf::mut_with_capacity(2048);
-          match client.read(&mut read_buf) {
-            Ok(a) => {
-              println!("Ok{:?}", a);
-              let mut buf = read_buf.flip();
-              let mut text = String::new();
-              buf.read_to_string(&mut text);
-              println!("Received: {}", text);
-              let msg = "hello\n".as_bytes();
-              match client.write_slice(msg) {
-                Ok(o)  => {
-                  println!("sent message: {:?}", o);
-                },
-                Err(e) => {
-                  match e.kind() {
-                    ErrorKind::BrokenPipe => {
-                      println!("broken pipe, removing client");
-                      event_loop.channel().send(Message::Close(tk));
-                    },
-                    _ => println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind())
-                  }
-                }
-              }
-            },
-            Err(e) => {
-              match e.kind() {
-                ErrorKind::BrokenPipe => {
-                  println!("broken pipe, removing client");
-                  event_loop.channel().send(Message::Close(tk));
-                },
-                _ => println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind())
-              }
-            }
-          }
-        }
+        self.client_read(event_loop, tk);
       }
     }
   }
