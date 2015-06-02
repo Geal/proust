@@ -11,7 +11,7 @@ use std::error::Error;
 //use std::net::TcpStream;
 use mio::tcp::*;
 use mio::*;
-use mio::buf::{ByteBuf};
+use mio::buf::{ByteBuf,SliceBuf,MutSliceBuf};
 use util::monitor;
 use storage::{self,storage};
 use std::marker::PhantomData;
@@ -63,18 +63,45 @@ impl KafkaHandler {
   fn client_read(&mut self, event_loop: &mut EventLoop<KafkaHandler>, tk: usize) {
     println!("client n°{:?} readable", tk);
     if let Some(client) = self.clients.get_mut(&tk) {
-      let mut read_buf = ByteBuf::mut_with_capacity(16);
-      match client.read(&mut read_buf) {
-        Ok(a) => {
-          println!("Ok{:?}", a);
-          let mut buf = read_buf.flip();
-          let mut text = String::new();
-          buf.read_to_string(&mut text);
-          println!("Received: {}", text);
-          let msg = "hello\n".as_bytes();
-          match client.write_slice(msg) {
-            Ok(o)  => {
-              println!("sent message: {:?}", o);
+      let mut size_buf = ByteBuf::mut_with_capacity(4);
+      if let Ok(Some(size)) = client.read(&mut size_buf) {
+        // FIXME: should parse 32 size here
+        let mut b = size_buf.flip();
+        let sz = b.read_byte().unwrap() as usize;
+        println!("allocating buffer of size {}", sz);
+        let mut read_buf = ByteBuf::mut_with_capacity(sz);
+        let mut bytes_read: usize = 0;
+        loop {
+          println!("remaining space: {}", read_buf.remaining());
+          match client.read(&mut read_buf) {
+            Ok(a) => {
+              if a == None || a == Some(0) {
+                println!("breaking because a == {:?}", a);
+                break;
+              }
+              println!("Ok({:?})", a);
+              if let Some(just_read) = a {
+                bytes_read += just_read;
+                if bytes_read >= sz {
+                  break;
+                }
+              }
+
+              let msg = "hello\n".as_bytes();
+              match client.write_slice(msg) {
+                Ok(o)  => {
+                  println!("sent message: {:?}", o);
+                },
+                Err(e) => {
+                  match e.kind() {
+                    ErrorKind::BrokenPipe => {
+                      println!("broken pipe, removing client");
+                      event_loop.channel().send(Message::Close(tk));
+                    },
+                    _ => println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind())
+                  }
+                }
+              }
             },
             Err(e) => {
               match e.kind() {
@@ -86,19 +113,13 @@ impl KafkaHandler {
               }
             }
           }
-        },
-        Err(e) => {
-          match e.kind() {
-            ErrorKind::BrokenPipe => {
-              println!("broken pipe, removing client");
-              event_loop.channel().send(Message::Close(tk));
-            },
-            _ => println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind())
-          }
         }
+        let mut text = String::new();
+        let mut buf = read_buf.flip();
+        buf.read_to_string(&mut text);
+        println!("content ({} bytes): {}", text.len(), text);
       }
     }
-
   }
 
   fn next_token(&mut self) -> usize {
