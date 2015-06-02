@@ -63,6 +63,10 @@ pub struct KafkaHandler {
 }
 
 impl Client {
+  fn new(stream: NonBlock<TcpStream>, index: usize) -> Client {
+      Client{ socket: stream, state: ClientState::Normal, token: index, buffer: ByteBuf::mut_with_capacity(0) }
+  }
+
   fn read_size(&mut self) -> ClientResult {
     let mut size_buf = ByteBuf::mut_with_capacity(4);
     match self.socket.read(&mut size_buf) {
@@ -170,7 +174,9 @@ impl KafkaHandler {
       println!("got client n°{:?}", index);
       let token = Token(index);
       event_loop.register_opt(&stream, token, Interest::all(), PollOpt::edge());
-      self.clients.insert(index, Client{ socket:stream, state: ClientState::Normal, token: index, buffer: ByteBuf::mut_with_capacity(0) });
+      self.clients.insert(index, Client::new(stream, index));
+      //self.clients.insert(index, Client{ socket:stream, state: ClientState::Normal, token: index, buffer: ByteBuf::mut_with_capacity(0) });
+      //self.clients.insert(index, Client{ socket:stream, state: ClientState::Normal, token: index, buffer: Queue::new(0) });
     } else {
       println!("invalid connection");
     }
@@ -185,10 +191,10 @@ impl KafkaHandler {
           match client.read_size() {
             Ok(sz) => {
               println!("allocating buffer of size {}", sz);
-              let mut read_buf = ByteBuf::mut_with_capacity(sz);
+              let mut buffer = ByteBuf::mut_with_capacity(sz);
 
-              let capacity = read_buf.remaining();
-              client.buffer = read_buf;
+              let capacity = buffer.remaining();
+              client.buffer = buffer;
               if let Err(ClientErr::ShouldClose) = client.read_to_buf() {
                 event_loop.channel().send(Message::Close(tk));
               }
