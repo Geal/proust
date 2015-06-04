@@ -44,7 +44,7 @@ mod tests {
   #[test]
   fn ser_offset_fetch_response_tests() {
     let mut v: Vec<u8> = vec![];
-    ser_offset_fetch_response(vec![(&[][..], vec![(0, 0, &[][..], 0)])], &mut v);
+    ser_offset_fetch_response(vec![("", vec![(0, 0, "", 0)])], &mut v);
     assert_eq!(&v[..], &[
       0x00, 0x00, 0x00, 0x01, // topics array length = 1
           0x00, 0x00,             // topic_name = ""

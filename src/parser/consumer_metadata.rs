@@ -26,7 +26,7 @@ mod tests {
         0x00, 0x00  //  ""
       ];
       let result = consumer_metadata_request(input);
-      let expected = &[][..];
+      let expected = "";
 
       assert_eq!(result, Done(&[][..], expected))
   }

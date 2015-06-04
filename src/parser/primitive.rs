@@ -8,6 +8,8 @@ use nom::Err::*;
 
 use std::str;
 
+use parser::errors::*;
+
 pub enum KafkaValue<'a> {
     Int8(KafkaInt8),
     Int16(KafkaInt8),
@@ -23,20 +25,43 @@ pub type KafkaInt16 = i16;
 pub type KafkaInt32 = i32;
 pub type KafkaInt64 = i64;
 pub type KafkaBytes<'a> = &'a [u8];
-pub type KafkaString<'a> = &'a [u8];
+pub type KafkaString<'a> = &'a str;
 
 pub fn kafka_bytes<'a>(input:&'a [u8]) -> IResult<&'a [u8], KafkaBytes<'a>> {
   match be_i32(input) {
     Done(i, length) => {
-      let sz: usize = length as usize;
-      // ToDo handle -1 (null)
-      // ToDo handle other negative values (it's an error)
-      println!("length: {}", length);
-      println!("sz: {}, len: {}", sz, i.len());
-      if i.len() >= sz {
-        return Done(&i[sz..], &i[0..sz])
+      if length >= 0 {
+        let sz: usize = length as usize;
+        if i.len() >= sz {
+          return Done(&i[sz..], &i[0..sz])
+        } else {
+          return Incomplete(Needed::Size(length as usize))
+        }
+      } else if length == -1 {
+        Error(Code(InputError::NotImplemented.to_int())) // TODO maybe make an optional parser which returns an option?
       } else {
-        return Incomplete(Needed::Size(length as usize))
+        Error(Code(InputError::ParserError.to_int()))
+      }
+    }
+    Error(e)      => Error(e),
+    Incomplete(e) => Incomplete(e)
+  }
+}
+
+pub fn kafka_bytestring<'a>(input:&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
+  match be_i16(input) {
+    Done(i, length) => {
+      if length >= 0 {
+        let sz: usize = length as usize;
+        if i.len() >= sz {
+          return Done(&i[sz..], &i[0..sz])
+        } else {
+          return Incomplete(Needed::Size(length as usize))
+        }
+      } else if length == -1 {
+        Error(Code(InputError::NotImplemented.to_int())) // TODO maybe make an optional parser which returns an option?
+      } else {
+        Error(Code(InputError::ParserError.to_int()))
       }
     }
     Error(e)      => Error(e),
@@ -45,28 +70,20 @@ pub fn kafka_bytes<'a>(input:&'a [u8]) -> IResult<&'a [u8], KafkaBytes<'a>> {
 }
 
 pub fn kafka_string<'a>(input:&'a [u8]) -> IResult<&'a [u8], KafkaString<'a>> {
-  match be_i16(input) {
-    Done(i, length) => {
-      // ToDo handle -1 (null)
-      // ToDo handle other negative values (it's an error)
-      let sz: usize = length as usize;
-      if i.len() >= sz {
-        return Done(&i[sz..], &i[0..sz])
-      } else {
-        return Incomplete(Needed::Size(length as usize))
-      }
-    }
-    Error(e)      => Error(e),
-    Incomplete(e) => Incomplete(e)
-  }
+  map_res!(input, kafka_bytestring, |bs| {
+    str::from_utf8(bs)
+  })
 }
 
 pub fn kafka_array<'a, F,O>(input: &'a[u8], closure: F) -> IResult<&'a[u8], Vec<O> >
  where F : Fn(&'a[u8]) -> IResult<&'a[u8], O> {
    match be_i32(input) {
     Done(i, size) => {
-      // ToDo handle negative values (it's an error)
-      count!(i, closure, size)
+      if size >= 0 {
+        count!(i, closure, size)
+      } else {
+        Error(Code(InputError::ParserError.to_int()))
+      }
     }
     Error(e)      => Error(e),
     Incomplete(e) => Incomplete(e)
@@ -79,6 +96,9 @@ mod tests {
   use super::*;
   use nom::*;
   use nom::IResult::*;
+  use nom::Err::*;
+
+  use parser::errors::*;
 
   #[test]
   fn kafka_bytes_test() {
@@ -90,10 +110,12 @@ mod tests {
 
   #[test]
   fn kafka_string_test() {
-    assert_eq!(kafka_string(&[0x00, 0x00]), Done(&[][..], &[][..]));
+    assert_eq!(kafka_string(&[0x00, 0x00]), Done(&[][..], ""));
     assert_eq!(kafka_string(&[0x00, 0x01]), Incomplete(Needed::Size(1)));
-    assert_eq!(kafka_string(&[0x00, 0x01, 0x00]), Done(&[][..], &[0x00][..]));
-    assert_eq!(kafka_string(&[0x00, 0x01, 0x00, 0x00]), Done(&[0x00][..], &[0x00][..]));
+    assert_eq!(kafka_string(&[0x00, 0x02, 65, 66]), Done(&[][..], "AB"));
+    assert_eq!(kafka_string(&[0x00, 0x01, 65, 0x00]), Done(&[0x00][..], "A"));
+    assert_eq!(kafka_string(&[0x80, 0x00]), Error(Code(InputError::ParserError.to_int())));
+    // TODO test invalid utf8 strings
   }
 
   #[test]
@@ -102,6 +124,7 @@ mod tests {
     assert_eq!(kafka_array(&[0x00, 0x00, 0x00, 0x01], be_i8), Incomplete(Needed::Unknown));
     assert_eq!(kafka_array(&[0x00, 0x00, 0x00, 0x01, 0x00], be_i8), Done(&[][..], vec![0x00]));
     assert_eq!(kafka_array(&[0x00, 0x00, 0x00, 0x01, 0x00, 0x00], be_i8), Done(&[0x00][..], vec![0x00]));
+    assert_eq!(kafka_array(&[0x80, 0x00, 0x00, 0x00], be_i8), Error(Code(InputError::ParserError.to_int())));
   }
 }
 

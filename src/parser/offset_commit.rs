@@ -8,6 +8,8 @@ use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
 use nom::Err::*;
 
+use parser::errors::*;
+
 #[derive(PartialEq,Debug)]
 pub enum OffsetCommitRequest<'a> {
   V0(OffsetCommitRequestV0<'a>),
@@ -20,14 +22,14 @@ pub fn offset_commit_request<'a>(input:&'a [u8], api_version: i16) -> IResult<&'
     0 => map!(input, offset_commit_request_v0, |p| { OffsetCommitRequest::V0(p) }),
     1 => map!(input, offset_commit_request_v1, |p| { OffsetCommitRequest::V1(p) }),
     2 => map!(input, offset_commit_request_v2, |p| { OffsetCommitRequest::V2(p) }),
-    _ => Error(Code(2))
+    _ => Error(Code(InputError::ParserError.to_int()))
   }
 }
 
 // v0
 #[derive(PartialEq,Debug)]
 pub struct OffsetCommitRequestV0<'a> {
-  consumer_group: &'a [u8],
+  consumer_group: KafkaString<'a>,
   topics: Vec<TopicOffsetCommitV0<'a>>
 }
 
@@ -35,7 +37,7 @@ pub fn offset_commit_request_v0<'a>(input:&'a [u8]) -> IResult<&'a [u8], OffsetC
   chain!(
     input,
     consumer_group: kafka_string ~
-    topics: call!(|i| { kafka_array(i, topic_offset_commit_v0) }), || {
+    topics: apply!(kafka_array, topic_offset_commit_v0), || {
       OffsetCommitRequestV0 {
         consumer_group: consumer_group,
         topics: topics
@@ -46,7 +48,7 @@ pub fn offset_commit_request_v0<'a>(input:&'a [u8]) -> IResult<&'a [u8], OffsetC
 
 #[derive(PartialEq,Debug)]
 pub struct TopicOffsetCommitV0<'a> {
-  topic_name: &'a [u8],
+  topic_name: KafkaString<'a>,
   partitions: Vec<PartitionOffsetCommitV0<'a>>
 }
 
@@ -54,7 +56,7 @@ pub fn topic_offset_commit_v0<'a>(input:&'a [u8]) -> IResult<&'a [u8], TopicOffs
   chain!(
     input,
     topic_name: kafka_string ~
-    partitions: call!(|i| { kafka_array(i, partition_offset_commit_v0) }), || {
+    partitions: apply!(kafka_array, partition_offset_commit_v0), || {
       TopicOffsetCommitV0 {
         topic_name: topic_name,
         partitions: partitions
@@ -67,7 +69,7 @@ pub fn topic_offset_commit_v0<'a>(input:&'a [u8]) -> IResult<&'a [u8], TopicOffs
 pub struct PartitionOffsetCommitV0<'a> {
   partition: i32,
   offset: i64,
-  metadata: &'a [u8]
+  metadata: KafkaString<'a>
 }
 
 pub fn partition_offset_commit_v0<'a>(input:&'a [u8]) -> IResult<&'a [u8], PartitionOffsetCommitV0> {
@@ -88,9 +90,9 @@ pub fn partition_offset_commit_v0<'a>(input:&'a [u8]) -> IResult<&'a [u8], Parti
 // v1
 #[derive(PartialEq,Debug)]
 pub struct OffsetCommitRequestV1<'a> {
-  consumer_group: &'a [u8],
+  consumer_group: KafkaString<'a>,
   consumer_group_generation_id: i32,
-  consumer_id: &'a [u8],
+  consumer_id: KafkaString<'a>,
   topics: Vec<TopicOffsetCommitV1<'a>>
 }
 
@@ -100,7 +102,7 @@ pub fn offset_commit_request_v1<'a>(input:&'a [u8]) -> IResult<&'a [u8], OffsetC
     consumer_group: kafka_string ~
     consumer_group_generation_id: be_i32 ~
     consumer_id: kafka_string ~
-    topics: call!(|i| { kafka_array(i, topic_offset_commit_v1) }), || {
+    topics: apply!(kafka_array, topic_offset_commit_v1), || {
       OffsetCommitRequestV1 {
         consumer_group: consumer_group,
         consumer_group_generation_id: consumer_group_generation_id,
@@ -113,7 +115,7 @@ pub fn offset_commit_request_v1<'a>(input:&'a [u8]) -> IResult<&'a [u8], OffsetC
 
 #[derive(PartialEq,Debug)]
 pub struct TopicOffsetCommitV1<'a> {
-  topic_name: &'a [u8],
+  topic_name: KafkaString<'a>,
   partitions: Vec<PartitionOffsetCommitV1<'a>>
 }
 
@@ -121,7 +123,7 @@ pub fn topic_offset_commit_v1<'a>(input:&'a [u8]) -> IResult<&'a [u8], TopicOffs
   chain!(
     input,
     topic_name: kafka_string ~
-    partitions: call!(|i| { kafka_array(i, partition_offset_commit_v1) }), || {
+    partitions: apply!(kafka_array, partition_offset_commit_v1), || {
       TopicOffsetCommitV1 {
         topic_name: topic_name,
         partitions: partitions
@@ -135,7 +137,7 @@ pub struct PartitionOffsetCommitV1<'a> {
   partition: i32,
   offset: i64,
   timestamp: i64,
-  metadata: &'a [u8]
+  metadata: KafkaString<'a>
 }
 
 pub fn partition_offset_commit_v1<'a>(input:&'a [u8]) -> IResult<&'a [u8], PartitionOffsetCommitV1> {
@@ -158,9 +160,9 @@ pub fn partition_offset_commit_v1<'a>(input:&'a [u8]) -> IResult<&'a [u8], Parti
 // v2
 #[derive(PartialEq,Debug)]
 pub struct OffsetCommitRequestV2<'a> {
-  consumer_group: &'a [u8],
+  consumer_group: KafkaString<'a>,
   consumer_group_generation_id: i32,
-  consumer_id: &'a [u8],
+  consumer_id: KafkaString<'a>,
   retention_time: i64,
   topics: Vec<TopicOffsetCommitV0<'a>>
 }
@@ -172,7 +174,7 @@ pub fn offset_commit_request_v2<'a>(input:&'a [u8]) -> IResult<&'a [u8], OffsetC
     consumer_group_generation_id: be_i32 ~
     consumer_id: kafka_string ~
     retention_time: be_i64 ~
-    topics: call!(|i| { kafka_array(i, topic_offset_commit_v0) }), || {
+    topics: apply!(kafka_array, topic_offset_commit_v0), || {
       OffsetCommitRequestV2 {
         consumer_group: consumer_group,
         consumer_group_generation_id: consumer_group_generation_id,
@@ -203,15 +205,15 @@ mod tests {
       ];
       let result = offset_commit_request_v0(input);
       let expected = OffsetCommitRequestV0 {
-        consumer_group: &[][..],
+        consumer_group: "",
         topics: vec![
           TopicOffsetCommitV0 {
-            topic_name: &[][..],
+            topic_name: "",
             partitions: vec![
               PartitionOffsetCommitV0 {
                 partition: 0,
                 offset: 0,
-                metadata: &[][..]
+                metadata: ""
               }
             ]
           }
@@ -237,18 +239,18 @@ mod tests {
       ];
       let result = offset_commit_request_v1(input);
       let expected = OffsetCommitRequestV1 {
-        consumer_group: &[][..],
+        consumer_group: "",
         consumer_group_generation_id: 0,
-        consumer_id: &[][..],
+        consumer_id: "",
         topics: vec![
           TopicOffsetCommitV1 {
-            topic_name: &[][..],
+            topic_name: "",
             partitions: vec![
               PartitionOffsetCommitV1 {
                 partition: 0,
                 offset: 0,
                 timestamp: 0,
-                metadata: &[][..]
+                metadata: ""
               }
             ]
           }
@@ -274,18 +276,18 @@ mod tests {
       ];
       let result = offset_commit_request_v2(input);
       let expected = OffsetCommitRequestV2 {
-        consumer_group: &[][..],
+        consumer_group: "",
         consumer_group_generation_id: 0,
-        consumer_id: &[][..],
+        consumer_id: "",
         retention_time: 0,
         topics: vec![
           TopicOffsetCommitV0 {
-            topic_name: &[][..],
+            topic_name: "",
             partitions: vec![
               PartitionOffsetCommitV0 {
                 partition: 0,
                 offset: 0,
-                metadata: &[][..]
+                metadata: ""
               }
             ]
           }

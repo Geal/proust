@@ -2,6 +2,7 @@
 #![allow(unused_imports)]
 
 use parser::primitive::*;
+use parser::errors::*;
 
 use nom::{HexDisplay,Needed,IResult,FileProducer,be_i8,be_i16,be_i32,be_i64,be_f32, eof};
 use nom::{Consumer,ConsumerState};
@@ -20,7 +21,7 @@ use parser::consumer_metadata::*;
 pub struct RequestMessage<'a> {
     api_version: i16,
     correlation_id: i32,
-    client_id: &'a [u8],
+    client_id: KafkaString<'a>,
     request_payload: RequestPayload<'a>
 }
 
@@ -36,7 +37,7 @@ pub enum RequestPayload<'a> {
     ConsumerMetadataRequest(ConsumerMetadataRequest<'a>)
 }
 
-pub fn parse_request_payload<'a>(api_version: i16, api_key: i16, input:&'a [u8]) -> IResult<&'a [u8], RequestPayload<'a>> {
+pub fn parse_request_payload<'a>(input:&'a [u8], api_version: i16, api_key: i16) -> IResult<&'a [u8], RequestPayload<'a>> {
     match api_key {
         0  => map!(input, produce_request, |p| { RequestPayload::ProduceRequest(p) }),
         1  => map!(input, fetch_request, |p| { RequestPayload::FetchRequest(p) }),
@@ -45,10 +46,10 @@ pub fn parse_request_payload<'a>(api_version: i16, api_key: i16, input:&'a [u8])
 
         // Non user-facing control APIs
         // Given proust topology, implementing all of them may not be necessary
-        4  => Error(Code(1)), // LeaderAndIsr
-        5  => Error(Code(1)), // StopReplica
-        6  => Error(Code(1)), // UpdateMetadata
-        7  => Error(Code(1)), // ControlledShutdown
+        4  => Error(Code(InputError::NotImplemented.to_int())), // LeaderAndIsr
+        5  => Error(Code(InputError::NotImplemented.to_int())), // StopReplica
+        6  => Error(Code(InputError::NotImplemented.to_int())), // UpdateMetadata
+        7  => Error(Code(InputError::NotImplemented.to_int())), // ControlledShutdown
 
         8  => {
            let pp = |i| { offset_commit_request(i, api_version) };
@@ -59,20 +60,22 @@ pub fn parse_request_payload<'a>(api_version: i16, api_key: i16, input:&'a [u8])
 
         // Not documented, but those exist in the code
         // Given proust topology, implementing all of them may not be necessary
-        11 => Error(Code(1)), // JoinGroup
-        12 => Error(Code(1)), // Heartbeat
+        11 => Error(Code(InputError::NotImplemented.to_int())), // JoinGroup
+        12 => Error(Code(InputError::NotImplemented.to_int())), // Heartbeat
 
-        _  => Error(Code(2)) // ToDo proper error code. A generic error type would be nicer.
-                             // I'm looking at you, @Geal
+        _  => Error(Code(InputError::ParserError.to_int()))
     }
 }
 
 pub fn request_message<'a>(input:&'a [u8]) -> IResult<&'a [u8], RequestMessage<'a>> {
   match be_i32(input) {
-    Done(i, length) => {
-      let sz = length as usize;
-      let request_bytes = |ii: &'a [u8]| {
-        take!(ii, sz)
+    Done(i, size) => {
+      let request_bytes = |i: &'a [u8]| {
+        if size >= 0 {
+          take!(i, size as usize)
+        } else {
+          Error(Code(InputError::InvalidRequestSize.to_int()))
+        }
       };
       flat_map!(i, request_bytes, |rb| {
         chain!(
@@ -81,7 +84,7 @@ pub fn request_message<'a>(input:&'a [u8]) -> IResult<&'a [u8], RequestMessage<'
           version: be_i16 ~
           correlation_id: be_i32 ~
           client_id: kafka_string ~
-          payload: call!(|i| { parse_request_payload(version, key, i) }) ~
+          payload: apply!(parse_request_payload, version, key) ~
           eof, || {
               RequestMessage {
                   api_version: version,
@@ -104,6 +107,10 @@ mod tests {
   use nom::*;
   use nom::IResult::*;
 
+  use nom::Err::*;
+
+  use parser::errors::*;
+
   #[test]
   fn request_message_test() {
       let input = &[
@@ -118,11 +125,26 @@ mod tests {
       let expected = RequestMessage {
         api_version: 0,
         correlation_id: 0,
-        client_id: &[][..],
+        client_id: "",
         request_payload: RequestPayload::MetadataRequest(vec![])
       };
 
       assert_eq!(result, Done(&[][..], expected))
+  }
+
+  #[test]
+  fn request_message_wrong_size_test() {
+      let input = &[
+        0x80, 0x00, 0x00, 0x00, // size = 14
+        0x00, 0x03,             // api_key = 3
+        0x00, 0x00,             // api_version = 0
+        0x00, 0x00, 0x00, 0x00, // correlation_id = 0
+        0x00, 0x00,             // client_id = ""
+        0x00, 0x00, 0x00, 0x00  // request_payload = []
+      ];
+      let result = request_message(input);
+
+      assert_eq!(result, Error(Code(InputError::InvalidRequestSize.to_int())));
   }
 
   #[test]
@@ -140,7 +162,7 @@ mod tests {
       let expected = RequestMessage {
         api_version: 0,
         correlation_id: 0,
-        client_id: &[][..],
+        client_id: "",
         request_payload: RequestPayload::MetadataRequest(vec![])
       };
 

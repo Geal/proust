@@ -1,4 +1,5 @@
 pub mod primitive;
+pub mod errors;
 pub mod request;
 pub mod produce;
 pub mod message;

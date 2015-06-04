@@ -2,11 +2,25 @@
 name = "proust"
 version = "0.0.1"
 dependencies = [
- "nom 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "crc 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "nom 0.3.1 (git+https://github.com/Geal/nom.git)",
 ]
+
+[[package]]
+name = "crc"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "lazy_static 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "lazy_static"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "nom"
 version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+source = "git+https://github.com/Geal/nom.git#e0686aa3fa1a3432fa33a33305afeb9ca0880283"
 

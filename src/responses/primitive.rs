@@ -55,10 +55,12 @@ pub fn ser_kafka_bytes(bs: KafkaBytes, output: &mut Vec<u8>) -> () {
   output.extend(bs.iter().cloned());
 }
 
-pub fn ser_kafka_string(bs: KafkaString, output: &mut Vec<u8>) -> () {
-  ser_i16(bs.len() as i16, output);
+pub fn ser_kafka_string(string: KafkaString, output: &mut Vec<u8>) -> () {
+  ser_i16(string.len() as i16, output);
 
-  output.extend(bs.iter().cloned());
+  for b in string.bytes() {
+    output.push(b);
+  }
 }
 
 pub fn ser_kafka_array<F,O>(elems: &Vec<O>, closure: F, output: &mut Vec<u8>) -> ()
@@ -126,8 +128,11 @@ mod tests {
   #[test]
   fn ser_kafka_string_test() {
     let mut v: Vec<u8> = vec![];
-    ser_kafka_string(&[][..], &mut v);
+    ser_kafka_string("", &mut v);
     assert_eq!(&v[..], &[0x00, 0x00][..]);
+    v.clear();
+    ser_kafka_string("ABCD", &mut v);
+    assert_eq!(&v[..], &[0x00, 0x04, 65, 66, 67, 68][..]);
   }
 
   #[test]

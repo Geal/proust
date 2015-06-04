@@ -9,6 +9,8 @@ use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
 use nom::Err::*;
 
+use crc::crc32;
+
 use responses::primitive::*;
 
 /*
@@ -53,13 +55,16 @@ pub fn ser_message_set(message_set: &MessageSet, output: &mut Vec<u8>) -> () {
 }
 
 pub fn ser_message(message: &Message, output: &mut Vec<u8>) -> () {
-  let Message { crc, magic_byte, attributes, ref key, ref value } = *message;
+  let Message { magic_byte, attributes, ref key, ref value } = *message;
+  let mut message_body: Vec<u8> = vec![];
 
-  ser_i32(crc, output);
-  ser_i8(magic_byte, output);
-  ser_i8(attributes, output);
-  ser_kafka_bytes(key, output);
-  ser_kafka_bytes(value, output);
+  ser_i8(magic_byte, &mut message_body);
+  ser_i8(attributes, &mut message_body);
+  ser_kafka_bytes(key, &mut message_body);
+  ser_kafka_bytes(value, &mut message_body);
+
+  ser_i32(crc32::checksum_ieee(&message_body[..]) as i32, output);
+  output.extend(message_body);
 }
 
 
@@ -76,7 +81,7 @@ mod tests {
   fn ser_fetch_response_test() {
     let mut v: Vec<u8> = vec![];
     ser_fetch_response(vec![(
-      &[][..],
+      "",
       vec![(
         0,
         0,
@@ -84,7 +89,6 @@ mod tests {
         vec![OMsMessage {
               offset: 0,
               message: Message {
-                crc: 0,
                 magic_byte: 0,
                 attributes: 0,
                 key: &[][..],
@@ -105,7 +109,7 @@ mod tests {
                   0x00, 0x00, 0x00, 0x01, // message_set array length = 1
                       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // offset = 0
                       0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
-                          0x00, 0x00, 0x00, 0x00, // crc = 0
+                          0xe3, 0x8a, 0x68, 0x76, // crc
                           0x00,                   // magic_byte = 0
                           0x00,                   // attributes = 0
                           0x00, 0x00, 0x00, 0x00, // key = []
@@ -119,7 +123,6 @@ mod tests {
     ser_message_set(&vec![OMsMessage {
       offset: 0,
       message: Message {
-        crc: 0,
         magic_byte: 0,
         attributes: 0,
         key: &[][..],
@@ -131,7 +134,7 @@ mod tests {
       0x00, 0x00, 0x00, 0x01, // message_set array length = 1
           0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // offset = 0
           0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
-              0x00, 0x00, 0x00, 0x00, // crc = 0
+              0xe3, 0x8a, 0x68, 0x76, // crc
               0x00,                   // magic_byte = 0
               0x00,                   // attributes = 0
               0x00, 0x00, 0x00, 0x00, // key = []
@@ -143,7 +146,6 @@ mod tests {
   fn ser_message_test() {
     let mut v: Vec<u8> = vec![];
     ser_message(&Message {
-      crc: 0,
       magic_byte: 0,
       attributes: 0,
       key: &[][..],
@@ -151,7 +153,7 @@ mod tests {
     }, &mut v);
 
     assert_eq!(&v[..], &[
-      0x00, 0x00, 0x00, 0x00, // crc = 0
+      0xe3, 0x8a, 0x68, 0x76, // crc
       0x00,                   // magic_byte = 0
       0x00,                   // attributes = 0
       0x00, 0x00, 0x00, 0x00, // key = []

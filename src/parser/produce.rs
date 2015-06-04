@@ -21,7 +21,7 @@ pub fn produce_request<'a>(input:&'a [u8]) -> IResult<&'a [u8], ProduceRequest<'
     input,
     acks: be_i16 ~
     timeout: be_i32 ~
-    topics: call!(|i| { kafka_array(i, topic_message_set) }), || {
+    topics: apply!(kafka_array, topic_message_set), || {
       ProduceRequest {
         required_acks: acks,
         timeout: timeout,
@@ -55,7 +55,7 @@ mod tests {
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // offset = 0
                     0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
                     // Message
-                    0x00, 0x00, 0x00, 0x00, // crc = 0
+                    0xe3, 0x8a, 0x68, 0x76, // crc
                     0x00,                   // magic_byte = 0
                     0x00,                   // attributes = 0
                     0x00, 0x00, 0x00, 0x00, // key = []
@@ -69,7 +69,7 @@ mod tests {
         timeout: 0,
         topics: vec![
           TopicMessageSet {
-            topic_name: &[][..],
+            topic_name: "",
             partitions: vec![
               PartitionMessageSet {
                 partition: 0,
@@ -77,7 +77,6 @@ mod tests {
                   OMsMessage {
                     offset: 0,
                     message: Message {
-                      crc: 0,
                       magic_byte: 0,
                       attributes: 0,
                       key: &[][..],

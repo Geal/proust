@@ -39,7 +39,7 @@ mod tests {
       ConsumerMetadataResponse {
         error_code: 0,
         coordinator_id: 1337,
-        coordinator_host: &[][..],
+        coordinator_host: "",
         coordinator_port: 9000
       }, &mut v);
     assert_eq!(&v[..], &[
