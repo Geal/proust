@@ -2,6 +2,7 @@
 name = "proust"
 version = "0.0.1"
 dependencies = [
+ "crc 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mio 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "mmap 0.1.1 (git+https://github.com/Geal/rust-mmap.git)",
  "nom 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -18,8 +19,21 @@ version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
+name = "crc"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "lazy_static 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "gcc"
 version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "lazy_static"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -68,19 +82,6 @@ dependencies = [
 name = "nom"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "lazy_static 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "lazy_static"
-version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-
-[[package]]
-name = "nom"
-version = "0.3.1"
-source = "git+https://github.com/Geal/nom.git#e0686aa3fa1a3432fa33a33305afeb9ca0880283"
 
 [[package]]
 name = "rand"
