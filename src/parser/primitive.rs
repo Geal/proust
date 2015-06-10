@@ -80,7 +80,7 @@ pub fn kafka_array<'a, F,O>(input: &'a[u8], closure: F) -> IResult<&'a[u8], Vec<
    match be_i32(input) {
     Done(i, size) => {
       if size >= 0 {
-        count!(i, closure, size)
+        count!(i, closure, size as usize)
       } else {
         Error(Code(InputError::ParserError.to_int()))
       }
