@@ -25,7 +25,7 @@ mod util;
 fn main() {
   //storage::storage_test();
 
-  let (tx, jg) = network::kafka::start_listener("abcd");
+  let (tx, jg) = network::zookeeper::start_listener("abcd");
   jg.join();
 
   println!("Hello, world!");
