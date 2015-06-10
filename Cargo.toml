@@ -6,7 +6,7 @@ authors = ["Clément Delafargue <clement@delafargue.name>", "Geoffroy Couprie <c
 [dependencies]
 crc = "^0.3.1"
 nom = "~0.3.1"
-mio = "0.3.0"
+mio = "~0.3.0"
 
 [dependencies.mmap]
 git = "https://github.com/Geal/rust-mmap.git"
