@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
-#![feature(core,std_misc)]
+#![feature(core)]
+#![cfg_attr(feature = "nightly", feature(std_misc))]
 extern crate core;
 extern crate mmap;
 extern crate mio;

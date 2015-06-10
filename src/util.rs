@@ -1,8 +1,19 @@
 use std::thread::{self,Thread,Builder};
-use std::rt::unwind::try;
 
+#[cfg(not(feature = "nightly"))]
 pub fn monitor<F, R>(f: F, restart_count: u8) -> Result<R, u8>
 where F: Fn() -> R + Send + 'static {
+
+  thread::spawn( move || {
+    f();
+  });
+  Err(0)
+}
+
+#[cfg(feature = "nightly")]
+pub fn monitor<F, R>(f: F, restart_count: u8) -> Result<R, u8>
+where F: Fn() -> R + Send + 'static {
+  use std::rt::unwind::try;
 
   thread::spawn( move || {
     let mut count = 0;

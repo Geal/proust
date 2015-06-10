@@ -2,7 +2,6 @@ use std::thread::{self,Thread,Builder};
 use std::string::String;
 use std::sync::mpsc;
 use std::sync::mpsc::{channel,Receiver};
-use std::rt::unwind::try;
 use std::collections::HashMap;
 
 use std::str;

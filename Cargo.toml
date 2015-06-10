@@ -10,3 +10,6 @@ mio = "~0.3.0"
 
 [dependencies.mmap]
 git = "https://github.com/Geal/rust-mmap.git"
+
+[features]
+nightly = []
