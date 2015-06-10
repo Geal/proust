@@ -1,2 +1,4 @@
 target
 .cargo
+examples/node-client/npm-debug.log
+examples/node-client/node_modules
