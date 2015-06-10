@@ -103,7 +103,7 @@ impl<'a> Storage<'a> {
   }
 }
 
-pub fn storage(out:&mio::Sender<network::Message>, name: &str) -> Sender<Request> {
+pub fn storage(out:&mio::Sender<network::kafka::Message>, name: &str) -> Sender<Request> {
   let (tx,rx) = channel::<u8>();
   let mut v: Vec<u8> = Vec::new();
   let t2 = out.clone();
@@ -115,7 +115,7 @@ pub fn storage(out:&mio::Sender<network::Message>, name: &str) -> Sender<Request
       if let Ok(count) = rx.recv() {
         //t2.send(count + 1);
         //t2.send(network::Message::Data(Vec::new()));
-        t2.send(network::Message::Data(v.clone()));
+        t2.send(network::kafka::Message::Data(v.clone()));
         //t2.send(network::Message::Data(&v[..]));
       }
     }

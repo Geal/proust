@@ -22,9 +22,9 @@ use responses::response::*;
 mod util;
 
 fn main() {
-  storage::storage_test();
+  //storage::storage_test();
 
-  let (tx, jg) = network::start_listener("abcd");
+  let (tx, jg) = network::kafka::start_listener("abcd");
   jg.join();
 
   println!("Hello, world!");
