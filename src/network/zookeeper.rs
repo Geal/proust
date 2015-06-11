@@ -153,14 +153,22 @@ impl Client {
     let mut size_buf = ByteBuf::mut_with_capacity(4);
     match self.socket.read(&mut size_buf) {
       Ok(Some(size)) => {
-        let mut b = size_buf.flip();
-        let b1 = b.read_byte().unwrap();
-        let b2 = b.read_byte().unwrap();
-        let b3 = b.read_byte().unwrap();
-        let b4 = b.read_byte().unwrap();
-        let sz = ((b1 as u32) << 24) + ((b2 as u32) << 16) + ((b3 as u32) << 8) + b4 as u32;
-        //println!("found size: {}", sz);
-        Ok(sz as usize)
+        if size == 0 {
+          Err(ClientErr::Continue)
+        } else {
+          println!("a: {}", size);
+          let mut b = size_buf.flip();
+          let b1 = b.read_byte().unwrap();
+          println!("aa");
+          let b2 = b.read_byte().unwrap();
+          println!("b");
+          let b3 = b.read_byte().unwrap();
+          let b4 = b.read_byte().unwrap();
+          println!("c");
+          let sz = ((b1 as u32) << 24) + ((b2 as u32) << 16) + ((b3 as u32) << 8) + b4 as u32;
+          //println!("found size: {}", sz);
+          Ok(sz as usize)
+        }
       },
       Ok(None) => Err(ClientErr::Continue),
       Err(e) => {
