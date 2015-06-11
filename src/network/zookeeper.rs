@@ -27,6 +27,7 @@ pub enum Message {
   Close(usize)
 }
 
+#[derive(Debug)]
 enum ClientErr {
   Continue,
   ShouldClose
@@ -34,16 +35,72 @@ enum ClientErr {
 
 type ClientResult = Result<usize, ClientErr>;
 
+#[derive(Debug)]
 enum ClientState {
   Normal,
   Await(usize)
 }
 
+#[derive(Debug)]
+enum ZookeeperState {
+  Connecting,
+  Normal
+}
+
 struct Client {
-  socket: NonBlock<TcpStream>,
-  state:  ClientState,
-  token:  usize,
-  buffer: Option<MutByteBuf>
+  socket:          NonBlock<TcpStream>,
+  state:           ClientState,
+  zookeeper_state: ZookeeperState,
+  token:           usize,
+  buffer:          Option<MutByteBuf>
+}
+
+impl Client {
+  fn handle_message(&mut self, event_loop: &mut EventLoop<ZookeeperHandler>, buffer: &mut ByteBuf) {
+    match self.zookeeper_state {
+      ZookeeperState::Connecting => {
+        let size = buffer.remaining();
+        let mut res: Vec<u8> = Vec::with_capacity(size);
+        unsafe {
+          res.set_len(size);
+        }
+        buffer.read_slice(&mut res[..]);
+        println!("connect state: {} bytes:\n{}", (&res[..]).len(), (&res[..]).to_hex(8));
+
+        if let IResult::Done(i, o) =  zookeeper::connection_request(&res[..size]) {
+          println!("connection request: {:?}", o);
+          println!("{} bytes:\n{}", i.len(), i.to_hex(8));
+
+          let c = zookeeper::ConnectResponse{
+            protocol_version: o.protocol_version,
+            timeout:          o.timeout,
+            session_id:       o.session_id,
+            password:         o.password
+          };
+
+          let mut v: Vec<u8> = Vec::new();
+          zookeeper::ser_connection_response(&c, &mut v);
+          println!("got {} bytes to write", v.len());
+          let write_res = self.write(&v[..]);
+          println!("write_res: {:?} wrote:\n{}", write_res, v.to_hex(8));
+          //self.state = ClientState::Normal;
+          self.zookeeper_state = ZookeeperState::Normal;
+        }  else {
+          println!("could not parse");
+        }
+      },
+      _ => {
+        println!("invalid state (for now)");
+        let size = buffer.remaining();
+        let mut res: Vec<u8> = Vec::with_capacity(size);
+        unsafe {
+          res.set_len(size);
+        }
+        buffer.read_slice(&mut res[..]);
+        println!("connect state: {} bytes:\n{}", (&res[..]).len(), (&res[..]).to_hex(8));
+      }
+    }
+  }
 }
 
 pub struct ListenerMessage {
@@ -66,17 +123,21 @@ pub struct ZookeeperHandler {
 
 impl Client {
   fn new(stream: NonBlock<TcpStream>, index: usize) -> Client {
-      Client{ socket: stream, state: ClientState::Normal, token: index, buffer: None }
+      Client{ socket: stream, state: ClientState::Normal, zookeeper_state: ZookeeperState::Connecting, token: index, buffer: None }
   }
 
   fn read_size(&mut self) -> ClientResult {
     let mut size_buf = ByteBuf::mut_with_capacity(4);
     match self.socket.read(&mut size_buf) {
       Ok(Some(size)) => {
-        // FIXME: should parse 32 bit size here
         let mut b = size_buf.flip();
-        let sz = b.read_byte().unwrap() as usize;
-        Ok(sz)
+        let b1 = b.read_byte().unwrap();
+        let b2 = b.read_byte().unwrap();
+        let b3 = b.read_byte().unwrap();
+        let b4 = b.read_byte().unwrap();
+        let sz = ((b1 as u32) << 24) + ((b2 as u32) << 16) + ((b3 as u32) << 8) + b4 as u32;
+        //println!("found size: {}", sz);
+        Ok(sz as usize)
       },
       Ok(None) => Err(ClientErr::Continue),
       Err(e) => {
@@ -97,14 +158,14 @@ impl Client {
   fn read_to_buf(&mut self, buffer: &mut MutByteBuf) -> ClientResult {
     let mut bytes_read: usize = 0;
     loop {
-      println!("remaining space: {}", buffer.remaining());
+      //println!("remaining space: {}", buffer.remaining());
       match self.socket.read(buffer) {
         Ok(a) => {
           if a == None || a == Some(0) {
-            println!("breaking because a == {:?}", a);
+            //println!("breaking because a == {:?}", a);
             break;
           }
-          println!("Ok({:?})", a);
+          //println!("Ok({:?})", a);
           if let Some(just_read) = a {
             bytes_read += just_read;
           }
@@ -167,31 +228,65 @@ impl ZookeeperHandler {
     println!("client n°{:?} readable", tk);
     if let Some(mut client) = self.clients.get_mut(&tk) {
 
-      let sz: usize = 44;
-      let mut buffer = ByteBuf::mut_with_capacity(1000);
-      if let Ok(size) = client.read_to_buf(&mut buffer) {
+      match client.state {
+        ClientState::Normal => {
+          //println!("state normal");
+          match client.read_size() {
+            Ok(size) => {
+              let mut buffer = ByteBuf::mut_with_capacity(size);
 
-        let mut res: [u8; 1000] = unsafe{[::std::mem::uninitialized(); 1000]};
-        let mut buf = buffer.flip();
-        buf.read_slice(&mut res);
-        println!("{} bytes:\n{}", (&res[..size]).len(), (&res[..size]).to_hex(8));
+              let capacity = buffer.remaining();  // actual buffer capacity may be higher
+              //println!("capacity: {}", capacity);
+              if let Err(ClientErr::ShouldClose) = client.read_to_buf(&mut buffer) {
+                event_loop.channel().send(Message::Close(tk));
+              }
 
-        if let IResult::Done(i, o) =  zookeeper::connection_request(&res[..size]) {
-          println!("connection request: {:?}", o);
-          println!("{} bytes:\n{}", i.len(), i.to_hex(8));
+              if capacity - buffer.remaining() < size {
+                //println!("read {} bytes", capacity - buffer.remaining());
+                client.state = ClientState::Await(size - (capacity - buffer.remaining()));
+                client.buffer = Some(buffer);
+              } else {
+                //println!("got enough bytes: {}", capacity - buffer.remaining());
+                let mut text = String::new();
+                let mut buf = buffer.flip();
+                client.handle_message(event_loop, &mut buf);
+              }
+            },
+            Err(ClientErr::ShouldClose) => {
+              println!("should close");
+              event_loop.channel().send(Message::Close(tk));
+            },
+            a => {
+              println!("other error: {:?}", a);
+            }
+          }
+        },
+        ClientState::Await(sz) => {
+          println!("awaits {} bytes", sz);
+          let mut buffer = client.buffer.take().unwrap();
+          let capacity = buffer.remaining();
 
-          let c = zookeeper::ConnectResponse{
-            protocol_version: o.protocol_version,
-            timeout:          o.timeout,
-            session_id:       o.session_id,
-            password:         o.password
-          };
-
-          let mut v: Vec<u8> = Vec::new();
-          zookeeper::ser_connection_response(&c, &mut v);
-          client.write(&v[..]);
+          if let Err(ClientErr::ShouldClose) = client.read_to_buf(&mut buffer) {
+            event_loop.channel().send(Message::Close(tk));
+          }
+          if capacity - buffer.remaining() < sz {
+            client.state  = ClientState::Await(sz - (capacity - buffer.remaining()));
+            client.buffer = Some(buffer);
+          } else {
+            let mut text = String::new();
+            let mut buf = buffer.flip();
+            client.handle_message(event_loop, &mut buf);
+          }
         }
       }
+    }
+  }
+
+  fn client_write(&mut self, event_loop: &mut EventLoop<ZookeeperHandler>, tk: usize) {
+    //println!("client n°{:?} readable", tk);
+    if let Some(mut client) = self.clients.get_mut(&tk) {
+      let s = b"";
+      client.write(s);
     }
   }
 
@@ -219,7 +314,7 @@ impl Handler for ZookeeperHandler {
   type Message = Message;
 
   fn readable(&mut self, event_loop: &mut EventLoop<ZookeeperHandler>, token: Token, _: ReadHint) {
-    println!("readable");
+    //println!("readable");
     match token {
       SERVER => {
         self.accept(event_loop);
@@ -231,13 +326,13 @@ impl Handler for ZookeeperHandler {
   }
 
   fn writable(&mut self, event_loop: &mut EventLoop<Self>, token: Token) {
-    println!("writable");
     match token {
       SERVER => {
         println!("server writeable");
       },
-      Token(x) => {
-        println!("client n°{:?} writeable", x);
+      Token(tk) => {
+        println!("client n°{:?} writeable", tk);
+        //self.client_write(event_loop, tk);
       }
     }
   }

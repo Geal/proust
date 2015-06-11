@@ -164,9 +164,9 @@ impl KafkaHandler {
     println!("client n°{:?} readable", tk);
     if let Some(mut client) = self.clients.get_mut(&tk) {
 
-      if let Ok(size) = client.read_size() {
+      /*if let Ok(size) = client.read_size() {
         println!("size: {:?}", size);
-      }
+      }*/
 
       match client.state {
         ClientState::Normal => {

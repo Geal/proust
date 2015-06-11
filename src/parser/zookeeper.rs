@@ -36,7 +36,7 @@ pub struct ConnectResponse<'a> {
 pub fn connection_request<'a>(input: &'a [u8]) -> IResult<&'a [u8], ConnectRequest<'a>> {
   chain!(
     input,
-    size:             be_i32    ~ // should be 44
+    //size:             be_i32    ~ // should be 44
     protocol_version: be_i32    ~
     last_zxid_seen:   be_i64    ~
     timeout:          be_i32    ~
@@ -44,7 +44,7 @@ pub fn connection_request<'a>(input: &'a [u8]) -> IResult<&'a [u8], ConnectReque
     password:         take!(16) ,
     //                  eof       ,
     || {
-      println!("connection request size: {}", size);
+      //println!("connection request size: {}", size);
       ConnectRequest {
         protocol_version: protocol_version,
         last_zxid_seen:   last_zxid_seen,
