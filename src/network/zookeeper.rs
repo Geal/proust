@@ -69,7 +69,6 @@ impl Client {
 
         if let IResult::Done(i, o) =  zookeeper::connection_request(&res[..size]) {
           println!("connection request: {:?}", o);
-          println!("{} bytes:\n{}", i.len(), i.to_hex(8));
 
           let c = zookeeper::ConnectResponse{
             protocol_version: o.protocol_version,
@@ -80,10 +79,10 @@ impl Client {
 
           let mut v: Vec<u8> = Vec::new();
           zookeeper::ser_connection_response(&c, &mut v);
-          println!("got {} bytes to write", v.len());
+          //println!("got {} bytes to write", v.len());
           let write_res = self.write(&v[..]);
-          println!("write_res: {:?} wrote:\n{}", write_res, v.to_hex(8));
-          //self.state = ClientState::Normal;
+          //println!("write_res: {:?} wrote:\n{}", write_res, v.to_hex(8));
+          println!("sent connection response");
           self.zookeeper_state = ZookeeperState::Normal;
         }  else {
           println!("could not parse");
