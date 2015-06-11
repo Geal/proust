@@ -90,14 +90,29 @@ impl Client {
         }
       },
       _ => {
-        println!("invalid state (for now)");
         let size = buffer.remaining();
         let mut res: Vec<u8> = Vec::with_capacity(size);
         unsafe {
           res.set_len(size);
         }
         buffer.read_slice(&mut res[..]);
-        println!("connect state: {} bytes:\n{}", (&res[..]).len(), (&res[..]).to_hex(8));
+        if let IResult::Done(i, header) =  zookeeper::request_header(&res[..size]) {
+          if header.xid == -2 && header._type == 11 {
+            println!("ping");
+            let r = zookeeper::ReplyHeader{
+              xid: -2,
+              zxid: 1,
+              err:  0 //ZOK
+            };
+            let mut v: Vec<u8> = Vec::new();
+            zookeeper::ser_reply_header(&r, &mut v);
+            let write_res = self.write(&v[..]);
+          } else {
+            println!("invalid state (for now)");
+            println!("got this request header: {:?}", header);
+            println!("remaining input ( {} bytes ):\n{}", i.len(), i.to_hex(8));
+          }
+        }
       }
     }
   }

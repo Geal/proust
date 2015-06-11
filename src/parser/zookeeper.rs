@@ -9,6 +9,12 @@ use parser::errors::*;
 use responses::primitive::{ser_i32,ser_i64};
 
 #[derive(Debug)]
+pub struct RequestHeader {
+  pub xid:   i32,
+  pub _type: i32
+}
+
+#[derive(Debug)]
 pub struct ReplyHeader {
   pub xid:  i32,
   pub zxid: i64,
@@ -56,6 +62,25 @@ pub fn connection_request<'a>(input: &'a [u8]) -> IResult<&'a [u8], ConnectReque
   )
 }
 
+pub fn request_header(input: &[u8]) -> IResult<&[u8], RequestHeader> {
+  chain!(input,
+    xid:   be_i32 ~
+    _type: be_i32 ,
+    || { RequestHeader { xid: xid, _type: _type } }
+  )
+}
+
+pub enum Message {
+  GetChildren,
+  Ping,
+}
+
+/*
+pub fn message(input: &[u8]) -> IResult<&[u8], Message> {
+  alt!(input,
+
+}
+*/
 pub fn ser_connection_response<'a>(c: &ConnectResponse<'a>, o: &mut Vec<u8>) -> () {
   ser_i32(32, o);
   ser_i32(c.protocol_version, o);
@@ -65,6 +90,7 @@ pub fn ser_connection_response<'a>(c: &ConnectResponse<'a>, o: &mut Vec<u8>) -> 
 }
 
 pub fn ser_reply_header(r: &ReplyHeader, o: &mut Vec<u8>) -> () {
+  ser_i32(16, o);
   ser_i32(r.xid, o);
   ser_i64(r.zxid, o);
   ser_i32(r.err, o);
