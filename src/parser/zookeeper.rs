@@ -1,12 +1,38 @@
 use parser::primitive::*;
 
-use nom::{HexDisplay,Needed,IResult,FileProducer, be_i8, be_i16, be_i32, be_i64, eof};
+use nom::{HexDisplay,Needed,IResult,FileProducer, be_u8, be_i8, be_i16, be_i32, be_i64, eof};
 use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
 use nom::Err::*;
 
 use parser::errors::*;
 use responses::primitive::{ser_i32,ser_i64};
+
+use std::str;
+
+#[repr(i32)]
+pub enum OpCodes {
+  NOTIFICATION   = 0,
+  CREATE         = 1,
+  DELETE         = 2,
+  EXISTS         = 3,
+  GET_DATA       = 4,
+  SET_DATA       = 5,
+  GET_ACL        = 6,
+  SET_ACL        = 7,
+  GET_CHILDREN   = 8,
+  SYNC           = 9,
+  PING           = 11,
+  GET_CHILDREN2  = 12,
+  CHECK          = 13,
+  MULTI          = 14,
+  AUTH           = 100,
+  SET_WATCHES    = 101,
+  SASL           = 102,
+  CREATE_SESSION = -10,
+  CLOSE_SESSION  = -11,
+  ERROR          = -1
+}
 
 #[derive(Debug)]
 pub struct RequestHeader {
@@ -38,6 +64,37 @@ pub struct ConnectResponse<'a> {
   pub password:         &'a[u8]
 }
 
+#[derive(Debug)]
+pub struct Stat {
+  pub czxid:          i64,
+  pub mzxid:          i64,
+  pub ctime:          i64,
+  pub mtime:          i64,
+  pub version:        i32,
+  pub cversion:       i32,
+  pub aversion:       i32,
+  pub ephemeralOwner: i64,
+  pub datalength:     i32,
+  pub numChildren:    i32,
+  pub pzxid:          i64
+}
+
+#[derive(Debug)]
+pub struct GetChildrenRequest<'a> {
+  pub path:  &'a str,
+  pub watch: bool
+}
+
+#[derive(Debug)]
+pub struct GetChildrenResponse<'a> {
+  pub children:  Vec<&'a str>
+}
+
+#[derive(Debug)]
+pub struct GetChildren2Response<'a> {
+  pub children:  Vec<&'a str>,
+  pub stat:      Stat
+}
 
 pub fn connection_request<'a>(input: &'a [u8]) -> IResult<&'a [u8], ConnectRequest<'a>> {
   chain!(
@@ -69,8 +126,17 @@ pub fn request_header(input: &[u8]) -> IResult<&[u8], RequestHeader> {
 }
 
 pub enum Message {
-  GetChildren,
+  GetChildren2,
   Ping,
+}
+
+pub fn get_children(input: &[u8]) -> IResult<&[u8], GetChildrenRequest> {
+  chain!(input,
+    path:   ustring ~
+    watch:  be_u8   ~
+            eof     ,
+    || { GetChildrenRequest { path: path, watch: watch == 1 } }
+  )
 }
 
 /*

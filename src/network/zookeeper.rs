@@ -79,9 +79,7 @@ impl Client {
 
           let mut v: Vec<u8> = Vec::new();
           zookeeper::ser_connection_response(&c, &mut v);
-          //println!("got {} bytes to write", v.len());
           let write_res = self.write(&v[..]);
-          //println!("write_res: {:?} wrote:\n{}", write_res, v.to_hex(8));
           println!("sent connection response");
           self.zookeeper_state = ZookeeperState::Normal;
         }  else {
@@ -107,9 +105,20 @@ impl Client {
             zookeeper::ser_reply_header(&r, &mut v);
             let write_res = self.write(&v[..]);
           } else {
-            println!("invalid state (for now)");
-            println!("got this request header: {:?}", header);
-            println!("remaining input ( {} bytes ):\n{}", i.len(), i.to_hex(8));
+            match header._type {
+              x if x == zookeeper::OpCodes::GET_CHILDREN2 as i32 => {
+                println!("got get_children2");
+                println!("remaining input ( {} bytes ):\n{}", i.len(), i.to_hex(8));
+                if let IResult::Done(i2, request) = zookeeper::get_children(i) {
+                  println!("got children request: {:?}", request);
+                }
+              }
+              _ => {
+                println!("invalid state (for now)");
+                println!("got this request header: {:?}", header);
+                println!("remaining input ( {} bytes ):\n{}", i.len(), i.to_hex(8));
+              }
+            }
           }
         }
       }
