@@ -66,7 +66,7 @@ impl Client {
           res.set_len(size);
         }
         buffer.read_slice(&mut res[..]);
-        println!("connect state: {} bytes:\n{}", (&res[..]).len(), (&res[..]).to_hex(8));
+        //println!("connect state: {} bytes:\n{}", (&res[..]).len(), (&res[..]).to_hex(8));
 
         if let IResult::Done(i, o) =  zookeeper::connection_request(&res[..size]) {
           println!("connection request: {:?}", o);
@@ -106,26 +106,25 @@ impl Client {
             let send_size = 16;
             responses::primitive::ser_i32(send_size, &mut v);
             zookeeper::ser_reply_header(&r, &mut v);
-            println!("sending {} bytes for ping:\n{}", v.len(), (&v[..]).to_hex(8));
+            //println!("sending {} bytes for ping:\n{}", v.len(), (&v[..]).to_hex(8));
             let write_res = self.write(&v[..]);
           } else {
             match header._type {
               x if x == zookeeper::OpCodes::GET_CHILDREN as i32 => {
                 println!("got get_children");
-                println!("remaining input ( {} bytes ):\n{}", i.len(), i.to_hex(8));
                 if let IResult::Done(i2, request) = zookeeper::get_children(i) {
                   println!("got children request: {:?}", request);
-                  let r = zookeeper::GetChildrenResponse{
+                  /*let r = zookeeper::GetChildrenResponse{
                     children: vec!["{\"jmx_port\":-1,\"timestamp\":\"1428512949385\",\"host\":\"127.0.0.1\",\"version\":1,\"port\":2181}"]
                   };
                   let mut v: Vec<u8> = Vec::new();
                   zookeeper::ser_get_children_response(&r, &mut v);
                   let write_res = self.write(&v[..]);
+                  */
                 }
               },
               x if x == zookeeper::OpCodes::GET_CHILDREN2 as i32 => {
                 println!("got get_children2");
-                println!("remaining input ( {} bytes ):\n{}", i.len(), i.to_hex(8));
                 if let IResult::Done(i2, request) = zookeeper::get_children(i) {
                   println!("got children2 request: {:?}", request);
                   if request.path == "/brokers/ids" {
@@ -146,11 +145,11 @@ impl Client {
                     let mut v: Vec<u8> = Vec::new();
                     //let send_size = 4+88+16+4;
                     responses::primitive::ser_i32(send_size, &mut v);
-                    println!("size tag: {}", send_size);
+                    //println!("size tag: {}", send_size);
                     zookeeper::ser_reply_header(&r, &mut v);
-                    println!("reply header:\n{}", (&v[..]).to_hex(8));
+                    //println!("reply header:\n{}", (&v[..]).to_hex(8));
                     zookeeper::ser_get_children2_response(&rp, &mut v);
-                    println!("sending {} bytes for get_children2:\n{}", v.len(), (&v[..]).to_hex(8));
+                    //println!("sending {} bytes for get_children2:\n{}", v.len(), (&v[..]).to_hex(8));
                     let write_res = self.write(&v[..]);
                   } else {
                     println!("unknown GetChildren2 path: {}", request.path);
@@ -159,8 +158,7 @@ impl Client {
               },
               x if x == zookeeper::OpCodes::GET_DATA as i32 => {
                 println!("got get_data");
-                println!("got this data request header: {:?}", header);
-                println!("remaining input ( {} bytes ):\n{}", i.len(), i.to_hex(8));
+                //println!("remaining input ( {} bytes ):\n{}", i.len(), i.to_hex(8));
                 if let IResult::Done(i2, request) = zookeeper::get_data(i) {
                   println!("got data request: {:?}", request);
                   if request.path == "/brokers/ids/1234" {
@@ -179,11 +177,11 @@ impl Client {
                     let send_size = 4 + 16 + ((4 + rp.data.len()) + stat_size);
                     let mut v: Vec<u8> = Vec::new();
                     responses::primitive::ser_i32(send_size as i32, &mut v);
-                    println!("size tag: {}", send_size);
+                    //println!("size tag: {}", send_size);
                     zookeeper::ser_reply_header(&r, &mut v);
-                    println!("reply header:\n{}", (&v[..]).to_hex(8));
+                    //println!("reply header:\n{}", (&v[..]).to_hex(8));
                     zookeeper::ser_get_data_response(&rp, &mut v);
-                    println!("sending {} bytes for get_data:\n{}", v.len(), (&v[..]).to_hex(8));
+                    //println!("sending {} bytes for get_data:\n{}", v.len(), (&v[..]).to_hex(8));
                     let write_res = self.write(&v[..]);
                   } else {
                     println!("unknown GetData path: {}", request.path);
@@ -329,7 +327,7 @@ impl ZookeeperHandler {
   }
 
   fn client_read(&mut self, event_loop: &mut EventLoop<ZookeeperHandler>, tk: usize) {
-    println!("client n°{:?} readable", tk);
+    //println!("client n°{:?} readable", tk);
     if let Some(mut client) = self.clients.get_mut(&tk) {
 
       match client.state {
@@ -435,7 +433,7 @@ impl Handler for ZookeeperHandler {
         println!("server writeable");
       },
       Token(tk) => {
-        println!("client n°{:?} writeable", tk);
+        //println!("client n°{:?} writeable", tk);
         //self.client_write(event_loop, tk);
       }
     }
