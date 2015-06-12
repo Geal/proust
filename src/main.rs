@@ -26,7 +26,9 @@ fn main() {
   //storage::storage_test();
   println!("Le peintre original procède à la façon des oculistes.");
 
-  let (tx, jg) = network::zookeeper::start_listener("abcd");
-  jg.join();
+  let (ztx, zjg) = network::zookeeper::start_listener("abcd");
+  let (ktx, kjg) = network::kafka::start_listener("abcd");
+  kjg.join();
+  zjg.join();
 }
 

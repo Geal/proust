@@ -230,7 +230,7 @@ impl Client {
     let mut size_buf = ByteBuf::mut_with_capacity(4);
     match self.socket.read(&mut size_buf) {
       Ok(Some(size)) => {
-        if size == 0 {
+        if size != 4 {
           Err(ClientErr::Continue)
         } else {
           let mut b = size_buf.flip();
