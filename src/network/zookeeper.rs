@@ -157,6 +157,35 @@ impl Client {
                   }
                 }
               },
+              x if x == zookeeper::OpCodes::GET_DATA as i32 => {
+                println!("got get_data");
+                println!("got this data request header: {:?}", header);
+                println!("remaining input ( {} bytes ):\n{}", i.len(), i.to_hex(8));
+                if let IResult::Done(i2, request) = zookeeper::get_data(i) {
+                  println!("got data request: {:?}", request);
+                  let rp = zookeeper::GetDataResponse{
+                    data: &b"{\"jmx_port\":-1,\"timestamp\":\"1428512949385\",\"host\":\"127.0.0.1\",\"version\":1,\"port\":9092}"[..],
+                    stat: zookeeper::Stat {
+                      czxid: 0, mzxid: 0, ctime: 0, mtime: 0, version: 0, cversion: 0, aversion: 0, ephemeralOwner: 0,
+                      datalength: 1, numChildren: 1, pzxid: 0 }
+                  };
+                  let r = zookeeper::ReplyHeader{
+                    xid: header.xid,
+                    zxid: 1,
+                    err:  0 //ZOK
+                  };
+                  let stat_size = 68;
+                  let send_size = 4 + 16 + ((4 + rp.data.len()) + stat_size);
+                  let mut v: Vec<u8> = Vec::new();
+                  responses::primitive::ser_i32(send_size as i32, &mut v);
+                  println!("size tag: {}", send_size);
+                  zookeeper::ser_reply_header(&r, &mut v);
+                  println!("reply header:\n{}", (&v[..]).to_hex(8));
+                  zookeeper::ser_get_data_response(&rp, &mut v);
+                  println!("sending {} bytes for get_data:\n{}", v.len(), (&v[..]).to_hex(8));
+                  let write_res = self.write(&v[..]);
+                }
+              },
               _ => {
                 println!("invalid state (for now)");
                 println!("got this request header: {:?}", header);

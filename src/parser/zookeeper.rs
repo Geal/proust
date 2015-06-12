@@ -96,6 +96,18 @@ pub struct GetChildren2Response<'a> {
   pub stat:      Stat
 }
 
+#[derive(Debug)]
+pub struct GetDataRequest<'a> {
+  pub path:  &'a str,
+  pub watch: bool
+}
+
+#[derive(Debug)]
+pub struct GetDataResponse<'a> {
+  pub data: &'a [u8],
+  pub stat: Stat
+}
+
 pub fn connection_request<'a>(input: &'a [u8]) -> IResult<&'a [u8], ConnectRequest<'a>> {
   chain!(
     input,
@@ -139,6 +151,14 @@ pub fn get_children(input: &[u8]) -> IResult<&[u8], GetChildrenRequest> {
   )
 }
 
+pub fn get_data(input: &[u8]) -> IResult<&[u8], GetDataRequest> {
+  chain!(input,
+    path:   ustring ~
+    watch:  be_u8   ~
+            eof     ,
+    || { GetDataRequest { path: path, watch: watch == 1 } }
+  )
+}
 /*
 pub fn message(input: &[u8]) -> IResult<&[u8], Message> {
   alt!(input,
@@ -203,17 +223,20 @@ pub fn ser_stat(s: &Stat, o: &mut Vec<u8>) -> usize {
   72
 }
 
-pub fn ser_get_children_response(r: &GetChildrenResponse, o: &mut Vec<u8>) -> () {
-  ser_i32(4, o);
-  let sz = ser_vector_ustring(&r.children, o);
-  o[3] = sz as u8 + 4;
+pub fn ser_get_children_response(r: &GetChildrenResponse, o: &mut Vec<u8>) -> usize {
+  ser_vector_ustring(&r.children, o)
 }
 
-pub fn ser_get_children2_response(r: &GetChildren2Response, o: &mut Vec<u8>) -> () {
-  //ser_i32(88, o);
+pub fn ser_get_children2_response(r: &GetChildren2Response, o: &mut Vec<u8>) -> usize {
   let sz  = ser_vector_ustring(&r.children, o);
   let sz2 = ser_stat(&r.stat, o);
-  //o[3] = 4 + sz as u8 + sz2 as u8;
+  sz + sz2
+}
+
+pub fn ser_get_data_response(r: &GetDataResponse, o: &mut Vec<u8>) -> usize {
+  let sz  = ser_buffer(&r.data, o);
+  let sz2 = ser_stat(&r.stat, o);
+  sz + sz2
 }
 
 pub fn ser_buffer(b: &[u8], o: &mut Vec<u8>) -> usize {
