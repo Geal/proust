@@ -128,29 +128,33 @@ impl Client {
                 println!("remaining input ( {} bytes ):\n{}", i.len(), i.to_hex(8));
                 if let IResult::Done(i2, request) = zookeeper::get_children(i) {
                   println!("got children2 request: {:?}", request);
-                  let rp = zookeeper::GetChildren2Response{
-                    //children: vec!["{\"jmx_port\":-1,\"timestamp\":\"1428512949385\",\"host\":\"127.0.0.1\",\"version\":1,\"port\":9092}"],
-                    children: vec!["1234"],
-                    //children: vec!["abcd"],
-                    stat: zookeeper::Stat {
-                      czxid: 0, mzxid: 0, ctime: 0, mtime: 0, version: 0, cversion: 0, aversion: 0, ephemeralOwner: 0,
-                      datalength: 1, numChildren: 1, pzxid: 0 }
-                  };
-                  let r = zookeeper::ReplyHeader{
-                    xid: header.xid,
-                    zxid: 1,
-                    err:  0 //ZOK
-                  };
-                  let mut v: Vec<u8> = Vec::new();
-                  //let send_size = 4+88+16+4;
-                  let send_size = 88+16-4;
-                  responses::primitive::ser_i32(send_size, &mut v);
-                  println!("size tag: {}", send_size);
-                  zookeeper::ser_reply_header(&r, &mut v);
-                  println!("reply header:\n{}", (&v[..]).to_hex(8));
-                  zookeeper::ser_get_children2_response(&rp, &mut v);
-                  println!("sending {} bytes for get_children2:\n{}", v.len(), (&v[..]).to_hex(8));
-                  let write_res = self.write(&v[..]);
+                  if request.path == "/brokers/ids" {
+                    let rp = zookeeper::GetChildren2Response{
+                      //children: vec!["{\"jmx_port\":-1,\"timestamp\":\"1428512949385\",\"host\":\"127.0.0.1\",\"version\":1,\"port\":9092}"],
+                      children: vec!["1234"],
+                      //children: vec!["abcd"],
+                      stat: zookeeper::Stat {
+                        czxid: 0, mzxid: 0, ctime: 0, mtime: 0, version: 0, cversion: 0, aversion: 0, ephemeralOwner: 0,
+                        datalength: 1, numChildren: 1, pzxid: 0 }
+                    };
+                    let r = zookeeper::ReplyHeader{
+                      xid: header.xid,
+                      zxid: 1,
+                      err:  0 //ZOK
+                    };
+                    let send_size = 88+16-4;
+                    let mut v: Vec<u8> = Vec::new();
+                    //let send_size = 4+88+16+4;
+                    responses::primitive::ser_i32(send_size, &mut v);
+                    println!("size tag: {}", send_size);
+                    zookeeper::ser_reply_header(&r, &mut v);
+                    println!("reply header:\n{}", (&v[..]).to_hex(8));
+                    zookeeper::ser_get_children2_response(&rp, &mut v);
+                    println!("sending {} bytes for get_children2:\n{}", v.len(), (&v[..]).to_hex(8));
+                    let write_res = self.write(&v[..]);
+                  } else {
+                    println!("unknown GetChildren2 path: {}", request.path);
+                  }
                 }
               },
               _ => {
