@@ -17,6 +17,7 @@ use std::marker::PhantomData;
 use nom::HexDisplay;
 use nom::IResult;
 use parser::zookeeper;
+use responses;
 
 const SERVER: Token = Token(0);
 
@@ -102,17 +103,56 @@ impl Client {
               err:  0 //ZOK
             };
             let mut v: Vec<u8> = Vec::new();
+            let send_size = 16;
+            responses::primitive::ser_i32(send_size, &mut v);
             zookeeper::ser_reply_header(&r, &mut v);
+            println!("sending {} bytes for ping:\n{}", v.len(), (&v[..]).to_hex(8));
             let write_res = self.write(&v[..]);
           } else {
             match header._type {
+              x if x == zookeeper::OpCodes::GET_CHILDREN as i32 => {
+                println!("got get_children");
+                println!("remaining input ( {} bytes ):\n{}", i.len(), i.to_hex(8));
+                if let IResult::Done(i2, request) = zookeeper::get_children(i) {
+                  println!("got children request: {:?}", request);
+                  let r = zookeeper::GetChildrenResponse{
+                    children: vec!["{\"jmx_port\":-1,\"timestamp\":\"1428512949385\",\"host\":\"127.0.0.1\",\"version\":1,\"port\":2181}"]
+                  };
+                  let mut v: Vec<u8> = Vec::new();
+                  zookeeper::ser_get_children_response(&r, &mut v);
+                  let write_res = self.write(&v[..]);
+                }
+              },
               x if x == zookeeper::OpCodes::GET_CHILDREN2 as i32 => {
                 println!("got get_children2");
                 println!("remaining input ( {} bytes ):\n{}", i.len(), i.to_hex(8));
                 if let IResult::Done(i2, request) = zookeeper::get_children(i) {
-                  println!("got children request: {:?}", request);
+                  println!("got children2 request: {:?}", request);
+                  let rp = zookeeper::GetChildren2Response{
+                    //children: vec!["{\"jmx_port\":-1,\"timestamp\":\"1428512949385\",\"host\":\"127.0.0.1\",\"version\":1,\"port\":9092}"],
+                    children: vec!["1234"],
+                    //children: vec!["abcd"],
+                    stat: zookeeper::Stat {
+                      czxid: 0, mzxid: 0, ctime: 0, mtime: 0, version: 0, cversion: 0, aversion: 0, ephemeralOwner: 0,
+                      datalength: 1, numChildren: 1, pzxid: 0 }
+                  };
+                  let r = zookeeper::ReplyHeader{
+                    xid: header.xid,
+                    zxid: 1,
+                    err:  0 //ZOK
+                  };
+                  let mut v: Vec<u8> = Vec::new();
+                  //let send_size = 4+88+16+4;
+                  let send_size = 88+16-4;
+                  responses::primitive::ser_i32(send_size, &mut v);
+                  println!("size tag: {}", send_size);
+                  zookeeper::ser_reply_header(&r, &mut v);
+                  println!("reply header:\n{}", (&v[..]).to_hex(8));
+                  zookeeper::ser_get_children2_response(&rp, &mut v);
+                  println!("sending {} bytes for get_children2:\n{}", v.len(), (&v[..]).to_hex(8));
+                  let write_res = self.write(&v[..]);
                 }
-              }
+              },
               _ => {
                 println!("invalid state (for now)");
                 println!("got this request header: {:?}", header);
@@ -156,15 +196,11 @@ impl Client {
         if size == 0 {
           Err(ClientErr::Continue)
         } else {
-          println!("a: {}", size);
           let mut b = size_buf.flip();
           let b1 = b.read_byte().unwrap();
-          println!("aa");
           let b2 = b.read_byte().unwrap();
-          println!("b");
           let b3 = b.read_byte().unwrap();
           let b4 = b.read_byte().unwrap();
-          println!("c");
           let sz = ((b1 as u32) << 24) + ((b2 as u32) << 16) + ((b3 as u32) << 8) + b4 as u32;
           //println!("found size: {}", sz);
           Ok(sz as usize)

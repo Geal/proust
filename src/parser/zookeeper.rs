@@ -167,21 +167,74 @@ pub fn buffer<'a>(input:&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
   }
 }
 
-named!(pub ustring<&str>, map_res!(buffer, str::from_utf8));
+named!(pub ustring<&[u8], &str>, map_res!(buffer, str::from_utf8));
 
-named!(pub vector_ustring< Vec<&str> >, length_value!(be_i32, ustring));
+named!(pub vector_ustring<&[u8], Vec<&str> >, length_value!(be_i32, ustring));
 
 pub fn ser_connection_response<'a>(c: &ConnectResponse<'a>, o: &mut Vec<u8>) -> () {
-  ser_i32(32, o);
+  ser_i32(16+4+c.password.len() as i32, o);
   ser_i32(c.protocol_version, o);
   ser_i32(c.timeout, o);
   ser_i64(c.session_id, o);
+  ser_i32(c.password.len() as i32, o);
   o.extend(c.password.iter().cloned());
 }
 
 pub fn ser_reply_header(r: &ReplyHeader, o: &mut Vec<u8>) -> () {
-  ser_i32(16, o);
+  //ser_i32(16, o);
   ser_i32(r.xid, o);
   ser_i64(r.zxid, o);
   ser_i32(r.err, o);
+}
+
+pub fn ser_stat(s: &Stat, o: &mut Vec<u8>) -> usize {
+  ser_i32(68, o);
+  ser_i64(s.czxid, o);
+  ser_i64(s.mzxid, o);
+  ser_i64(s.ctime, o);
+  ser_i64(s.mtime, o);
+  ser_i32(s.version, o);
+  ser_i32(s.cversion, o);
+  ser_i32(s.aversion, o);
+  ser_i64(s.ephemeralOwner, o);
+  ser_i32(s.datalength, o);
+  ser_i32(s.numChildren, o);
+  ser_i64(s.pzxid, o);
+  72
+}
+
+pub fn ser_get_children_response(r: &GetChildrenResponse, o: &mut Vec<u8>) -> () {
+  ser_i32(4, o);
+  let sz = ser_vector_ustring(&r.children, o);
+  o[3] = sz as u8 + 4;
+}
+
+pub fn ser_get_children2_response(r: &GetChildren2Response, o: &mut Vec<u8>) -> () {
+  //ser_i32(88, o);
+  let sz  = ser_vector_ustring(&r.children, o);
+  let sz2 = ser_stat(&r.stat, o);
+  //o[3] = 4 + sz as u8 + sz2 as u8;
+}
+
+pub fn ser_buffer(b: &[u8], o: &mut Vec<u8>) -> usize {
+  ser_i32(b.len() as i32, o);
+  o.extend(b.iter().cloned());
+  4 + b.len()
+}
+
+pub fn ser_ustring(r: &str, o: &mut Vec<u8>) -> usize {
+  ser_i32(r.len() as i32, o);
+  o.extend(r.as_bytes().iter().cloned());
+  4 + r.len()
+}
+
+pub fn ser_vector_ustring(v: &Vec<&str>, o: &mut Vec<u8>) -> usize {
+  let mut length = 0;
+  ser_i32(v.len() as i32, o);
+  length += 4;
+  for s in v.iter() {
+    ser_ustring(s, o);
+    length += s.len();
+  }
+  length
 }
