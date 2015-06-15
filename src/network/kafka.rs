@@ -1,19 +1,14 @@
 use std::thread::{self,Thread,Builder};
 use std::string::String;
-use std::sync::mpsc;
 use std::sync::mpsc::{channel,Receiver};
 use std::collections::HashMap;
 
 use std::str;
-use std::io::{self,Read,ErrorKind};
-use std::error::Error;
-//use std::net::TcpStream;
 use mio::tcp::*;
 use mio::*;
 use mio::buf::{RingBuf,ByteBuf,MutByteBuf,SliceBuf,MutSliceBuf};
 use util::monitor;
 use storage::{self,storage};
-use std::marker::PhantomData;
 use nom::HexDisplay;
 use network::handler::*;
 
