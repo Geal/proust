@@ -20,10 +20,7 @@ use network::handler::*;
 const SERVER: Token = Token(0);
 
 struct Client {
-  socket: NonBlock<TcpStream>,
-  state:  ClientState,
-  token:  usize,
-  buffer: Option<MutByteBuf>
+  network_state: NetworkState
 }
 
 pub struct ListenerMessage {
@@ -37,27 +34,18 @@ pub struct Listener {
 
 impl NetworkClient for Client {
   fn new(stream: NonBlock<TcpStream>, index: usize) -> Client {
-      Client{ socket: stream, state: ClientState::Normal, token: index, buffer: None }
+    Client{
+      network_state: NetworkState {
+        socket: stream,
+        state: ClientState::Normal,
+        token: index,
+        buffer: None
+      }
+    }
   }
 
-  fn state(&self) -> ClientState {
-    self.state.clone()
-  }
-
-  fn set_state(&mut self, st: ClientState) {
-    self.state = st;
-  }
-
-  fn buffer(&mut self) -> Option<MutByteBuf> {
-    self.buffer.take()
-  }
-
-  fn set_buffer(&mut self, buf: MutByteBuf) {
-    self.buffer = Some(buf);
-  }
-
-  fn socket(&mut self) -> &mut NonBlock<TcpStream> {
-    &mut self.socket
+  fn network_state(&mut self) -> &mut NetworkState {
+    &mut self.network_state
   }
 
   fn handle_message(&mut self, buffer: &mut ByteBuf) ->ClientErr {

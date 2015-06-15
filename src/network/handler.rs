@@ -8,20 +8,36 @@ use std::error::Error;
 const SERVER: Token = Token(0);
 
 pub struct NetworkState {
-  socket: NonBlock<TcpStream>,
-  state:  ClientState,
-  token:  usize,
-  buffer: Option<MutByteBuf>
+  pub socket: NonBlock<TcpStream>,
+  pub state:  ClientState,
+  pub token:  usize,
+  pub buffer: Option<MutByteBuf>
 }
 
 pub trait NetworkClient {
   fn new(stream: NonBlock<TcpStream>, index: usize) -> Self;
   fn handle_message(&mut self, buffer: &mut ByteBuf) -> ClientErr;
-  fn state(&self) -> ClientState;
-  fn set_state(&mut self, st: ClientState);
-  fn buffer(&mut self) -> Option<MutByteBuf>;
-  fn set_buffer(&mut self, buf: MutByteBuf);
-  fn socket(&mut self) -> &mut NonBlock<TcpStream>;
+  fn network_state(&mut self) -> &mut NetworkState;
+
+  fn state(&mut self) -> ClientState {
+    self.network_state().state.clone()
+  }
+
+  fn set_state(&mut self, st: ClientState) {
+    self.network_state().state = st;
+  }
+
+  fn buffer(&mut self) -> Option<MutByteBuf> {
+    self.network_state().buffer.take()
+  }
+
+  fn set_buffer(&mut self, buf: MutByteBuf) {
+    self.network_state().buffer = Some(buf);
+  }
+
+  fn socket(&mut self) -> &mut NonBlock<TcpStream> {
+    &mut self.network_state().socket
+  }
 
   fn read_size(&mut self) -> ClientResult {
     let mut size_buf = ByteBuf::mut_with_capacity(4);

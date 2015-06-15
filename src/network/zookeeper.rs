@@ -27,36 +27,25 @@ enum ZookeeperState {
 }
 
 struct Client {
-  socket:          NonBlock<TcpStream>,
-  state:           ClientState,
   zookeeper_state: ZookeeperState,
-  token:           usize,
-  buffer:          Option<MutByteBuf>
+  network_state:   NetworkState
 }
 
 impl NetworkClient for Client {
   fn new(stream: NonBlock<TcpStream>, index: usize) -> Client {
-    Client{ socket: stream, state: ClientState::Normal, zookeeper_state: ZookeeperState::Connecting, token: index, buffer: None }
+    Client {
+      zookeeper_state: ZookeeperState::Connecting,
+      network_state: NetworkState {
+        socket: stream,
+        state: ClientState::Normal,
+        token: index,
+        buffer: None
+      }
+    }
   }
 
-  fn state(&self) -> ClientState {
-    self.state.clone()
-  }
-
-  fn set_state(&mut self, st: ClientState) {
-    self.state = st;
-  }
-
-  fn buffer(&mut self) -> Option<MutByteBuf> {
-    self.buffer.take()
-  }
-
-  fn set_buffer(&mut self, buf: MutByteBuf) {
-    self.buffer = Some(buf);
-  }
-
-  fn socket(&mut self) -> &mut NonBlock<TcpStream> {
-    &mut self.socket
+  fn network_state(&mut self) -> &mut NetworkState {
+    &mut self.network_state
   }
 
   fn handle_message(&mut self, buffer: &mut ByteBuf) -> ClientErr {
