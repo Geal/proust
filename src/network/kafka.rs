@@ -35,15 +35,6 @@ pub struct Listener {
   rx: Receiver<u8>
 }
 
-pub struct KafkaHandler {
-  listener:    NonBlock<TcpListener>,
-  storage_tx : mpsc::Sender<storage::Request>,
-  counter:     u8,
-  token_index: usize,
-  clients:     HashMap<usize, Client>,
-  available_tokens: Vec<usize>
-}
-
 impl NetworkClient for Client {
   fn new(stream: NonBlock<TcpStream>, index: usize) -> Client {
       Client{ socket: stream, state: ClientState::Normal, token: index, buffer: None }
@@ -65,91 +56,8 @@ impl NetworkClient for Client {
     self.buffer = Some(buf);
   }
 
-  fn read_size(&mut self) -> ClientResult {
-    let mut size_buf = ByteBuf::mut_with_capacity(4);
-    match self.socket.read(&mut size_buf) {
-      Ok(Some(size)) => {
-        if size != 4 {
-          Err(ClientErr::Continue)
-        } else {
-          let mut b = size_buf.flip();
-          let b1 = b.read_byte().unwrap();
-          let b2 = b.read_byte().unwrap();
-          let b3 = b.read_byte().unwrap();
-          let b4 = b.read_byte().unwrap();
-          let sz = ((b1 as u32) << 24) + ((b2 as u32) << 16) + ((b3 as u32) << 8) + b4 as u32;
-          //println!("found size: {}", sz);
-          Ok(sz as usize)
-        }
-      },
-      Ok(None) => Err(ClientErr::Continue),
-      Err(e) => {
-        match e.kind() {
-          ErrorKind::BrokenPipe => {
-            println!("broken pipe, removing client");
-            Err(ClientErr::ShouldClose)
-          },
-          _ => {
-            println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind());
-            Err(ClientErr::Continue)
-          }
-        }
-      }
-    }
-  }
-
-  fn read_to_buf(&mut self, buffer: &mut MutByteBuf) -> ClientResult {
-    let mut bytes_read: usize = 0;
-    loop {
-      println!("remaining space: {}", buffer.remaining());
-      match self.socket.read(buffer) {
-        Ok(a) => {
-          if a == None || a == Some(0) {
-            println!("breaking because a == {:?}", a);
-            break;
-          }
-          println!("Ok({:?})", a);
-          if let Some(just_read) = a {
-            bytes_read += just_read;
-          }
-        },
-        Err(e) => {
-          match e.kind() {
-            ErrorKind::BrokenPipe => {
-              println!("broken pipe, removing client");
-              return Err(ClientErr::ShouldClose)
-            },
-            _ => {
-              println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind());
-              return Err(ClientErr::Continue)
-            }
-          }
-        }
-      }
-    }
-    Ok(bytes_read)
-  }
-
-  fn write(&mut self, msg: &[u8]) -> ClientResult {
-    match self.socket.write_slice(msg) {
-      Ok(Some(o))  => {
-        println!("sent message: {:?}", o);
-        Ok(o)
-      },
-      Ok(None) => Err(ClientErr::Continue),
-      Err(e) => {
-        match e.kind() {
-          ErrorKind::BrokenPipe => {
-            println!("broken pipe, removing client");
-            Err(ClientErr::ShouldClose)
-          },
-          _ => {
-            println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind());
-            Err(ClientErr::Continue)
-          }
-        }
-      }
-    }
+  fn socket(&mut self) -> &mut NonBlock<TcpStream> {
+    &mut self.socket
   }
 
   fn handle_message(&mut self, buffer: &mut ByteBuf) ->ClientErr {
