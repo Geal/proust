@@ -15,29 +15,9 @@ use util::monitor;
 use storage::{self,storage};
 use std::marker::PhantomData;
 use nom::HexDisplay;
+use network::handler::*;
 
 const SERVER: Token = Token(0);
-
-#[derive(Debug)]
-pub enum Message {
-  Stop,
-  Data(Vec<u8>),
-  Close(usize)
-}
-
-#[derive(Debug)]
-enum ClientErr {
-  Continue,
-  ShouldClose
-}
-
-type ClientResult = Result<usize, ClientErr>;
-
-#[derive(Debug)]
-enum ClientState {
-  Normal,
-  Await(usize)
-}
 
 struct Client {
   socket: NonBlock<TcpStream>,
@@ -64,9 +44,25 @@ pub struct KafkaHandler {
   available_tokens: Vec<usize>
 }
 
-impl Client {
+impl NetworkClient for Client {
   fn new(stream: NonBlock<TcpStream>, index: usize) -> Client {
       Client{ socket: stream, state: ClientState::Normal, token: index, buffer: None }
+  }
+
+  fn state(&self) -> ClientState {
+    self.state.clone()
+  }
+
+  fn set_state(&mut self, st: ClientState) {
+    self.state = st;
+  }
+
+  fn buffer(&mut self) -> Option<MutByteBuf> {
+    self.buffer.take()
+  }
+
+  fn set_buffer(&mut self, buf: MutByteBuf) {
+    self.buffer = Some(buf);
   }
 
   fn read_size(&mut self) -> ClientResult {
@@ -156,7 +152,7 @@ impl Client {
     }
   }
 
-  fn handle_message(&mut self, event_loop: &mut EventLoop<KafkaHandler>, buffer: &mut ByteBuf) {
+  fn handle_message(&mut self, buffer: &mut ByteBuf) ->ClientErr {
     let size = buffer.remaining();
     let mut res: Vec<u8> = Vec::with_capacity(size);
     unsafe {
@@ -164,159 +160,21 @@ impl Client {
     }
     buffer.read_slice(&mut res[..]);
     println!("handle_message got {} bytes:\n{}", (&res[..]).len(), (&res[..]).to_hex(8));
-  }
-}
-
-
-impl KafkaHandler {
-  fn accept(&mut self, event_loop: &mut EventLoop<KafkaHandler>) {
-    if let Ok(Some(stream)) = self.listener.accept() {
-      let index = self.next_token();
-      println!("got client n°{:?}", index);
-      let token = Token(index);
-      event_loop.register_opt(&stream, token, Interest::all(), PollOpt::edge());
-      self.clients.insert(index, Client::new(stream, index));
-    } else {
-      println!("invalid connection");
-    }
-  }
-
-  fn client_read(&mut self, event_loop: &mut EventLoop<KafkaHandler>, tk: usize) {
-    println!("client n°{:?} readable", tk);
-    if let Some(mut client) = self.clients.get_mut(&tk) {
-      match client.state {
-        ClientState::Normal => {
-          //println!("state normal");
-          match client.read_size() {
-            Ok(size) => {
-              let mut buffer = ByteBuf::mut_with_capacity(size);
-
-              let capacity = buffer.remaining();  // actual buffer capacity may be higher
-              //println!("capacity: {}", capacity);
-              if let Err(ClientErr::ShouldClose) = client.read_to_buf(&mut buffer) {
-                event_loop.channel().send(Message::Close(tk));
-              }
-
-              if capacity - buffer.remaining() < size {
-                //println!("read {} bytes", capacity - buffer.remaining());
-                client.state = ClientState::Await(size - (capacity - buffer.remaining()));
-                client.buffer = Some(buffer);
-              } else {
-                //println!("got enough bytes: {}", capacity - buffer.remaining());
-                let mut text = String::new();
-                let mut buf = buffer.flip();
-                client.handle_message(event_loop, &mut buf);
-              }
-            },
-            Err(ClientErr::ShouldClose) => {
-              println!("should close");
-              event_loop.channel().send(Message::Close(tk));
-            },
-            a => {
-              println!("other error: {:?}", a);
-            }
-          }
-        },
-        ClientState::Await(sz) => {
-          println!("awaits {} bytes", sz);
-          let mut buffer = client.buffer.take().unwrap();
-          let capacity = buffer.remaining();
-
-          if let Err(ClientErr::ShouldClose) = client.read_to_buf(&mut buffer) {
-            event_loop.channel().send(Message::Close(tk));
-          }
-          if capacity - buffer.remaining() < sz {
-            client.state  = ClientState::Await(sz - (capacity - buffer.remaining()));
-            client.buffer = Some(buffer);
-          } else {
-            let mut text = String::new();
-            let mut buf = buffer.flip();
-            client.handle_message(event_loop, &mut buf);
-          }
-        }
-      }
-    }
-  }
-
-  fn next_token(&mut self) -> usize {
-    match self.available_tokens.pop() {
-      None        => {
-        let index = self.token_index;
-        self.token_index += 1;
-        index
-      },
-      Some(index) => {
-        index
-      }
-    }
-  }
-
-  fn close(&mut self, token: usize) {
-    self.clients.remove(&token);
-    self.available_tokens.push(token);
-  }
-}
-
-impl Handler for KafkaHandler {
-  type Timeout = ();
-  type Message = Message;
-
-  fn readable(&mut self, event_loop: &mut EventLoop<KafkaHandler>, token: Token, _: ReadHint) {
-    println!("readable");
-    match token {
-      SERVER => {
-        self.accept(event_loop);
-      },
-      Token(tk) => {
-        self.client_read(event_loop, tk);
-      }
-    }
-  }
-
-  fn writable(&mut self, event_loop: &mut EventLoop<Self>, token: Token) {
-    println!("writable");
-    match token {
-      SERVER => {
-        println!("server writeable");
-      },
-      Token(x) => {
-        println!("client n°{:?} writeable", x);
-      }
-    }
-  }
-
-  fn notify(&mut self, _reactor: &mut EventLoop<KafkaHandler>, msg: Message) {
-    println!("notify: {:?}", msg);
-    match msg {
-      Message::Close(token) => {
-        println!("closing client n°{:?}", token);
-        self.close(token)
-      },
-      _                     => println!("unknown message: {:?}", msg)
-    }
-  }
-
-
-  fn timeout(&mut self, event_loop: &mut EventLoop<Self>, timeout: Self::Timeout) {
-    println!("timeout");
-  }
-
-  fn interrupted(&mut self, event_loop: &mut EventLoop<Self>) {
-    println!("interrupted");
+    ClientErr::Continue
   }
 }
 
 pub fn start_listener(address: &str) -> (Sender<Message>,thread::JoinHandle<()>)  {
-  let mut event_loop = EventLoop::new().unwrap();
+  let mut event_loop:EventLoop<ProustHandler<Client>> = EventLoop::new().unwrap();
   let t2 = event_loop.channel();
   let jg = thread::spawn(move || {
     let listener = NonBlock::new(TcpListener::bind("127.0.0.1:9092").unwrap());
     event_loop.register(&listener, SERVER).unwrap();
-    let t = storage(&event_loop.channel(), "pouet");
+    //let t = storage(&event_loop.channel(), "pouet");
 
-    event_loop.run(&mut KafkaHandler {
+    event_loop.run(&mut ProustHandler {
       listener: listener,
-      storage_tx: t,
+      //storage_tx: t,
       counter: 0,
       token_index: 1, // 0 is the server socket
       clients: HashMap::new(),
