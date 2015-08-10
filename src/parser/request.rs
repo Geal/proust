@@ -67,7 +67,7 @@ pub fn parse_request_payload<'a>(input:&'a [u8], api_version: i16, api_key: i16)
     }
 }
 
-pub fn request_message<'a>(input:&'a [u8]) -> IResult<&'a [u8], RequestMessage<'a>> {
+pub fn request_message_with_length<'a>(input:&'a [u8]) -> IResult<&'a [u8], RequestMessage<'a>> {
   match be_i32(input) {
     Done(i, size) => {
       let request_bytes = |i: &'a [u8]| {
@@ -78,27 +78,31 @@ pub fn request_message<'a>(input:&'a [u8]) -> IResult<&'a [u8], RequestMessage<'
         }
       };
       flat_map!(i, request_bytes, |rb| {
-        chain!(
-          rb,
-          key: be_i16 ~
-          version: be_i16 ~
-          correlation_id: be_i32 ~
-          client_id: kafka_string ~
-          payload: apply!(parse_request_payload, version, key) ~
-          eof, || {
-              RequestMessage {
-                  api_version: version,
-                  correlation_id: correlation_id,
-                  client_id: client_id,
-                  request_payload: payload
-              }
-          }
-        )
+          request_message(rb)
       })
     }
     Error(e)      => Error(e),
     Incomplete(e) => Incomplete(e)
   }
+}
+
+pub fn request_message<'a>(input:&'a [u8]) -> IResult<&'a [u8], RequestMessage<'a>> {
+  chain!(
+    input,
+    key: be_i16 ~
+    version: be_i16 ~
+    correlation_id: be_i32 ~
+    client_id: kafka_string ~
+    payload: apply!(parse_request_payload, version, key) ~
+    eof, || {
+        RequestMessage {
+            api_version: version,
+            correlation_id: correlation_id,
+            client_id: client_id,
+            request_payload: payload
+        }
+    }
+  )
 }
 
 #[cfg(test)]
@@ -121,7 +125,7 @@ mod tests {
         0x00, 0x00,             // client_id = ""
         0x00, 0x00, 0x00, 0x00  // request_payload = []
       ];
-      let result = request_message(input);
+      let result = request_message_with_length(input);
       let expected = RequestMessage {
         api_version: 0,
         correlation_id: 0,
@@ -142,7 +146,7 @@ mod tests {
         0x00, 0x00,             // client_id = ""
         0x00, 0x00, 0x00, 0x00  // request_payload = []
       ];
-      let result = request_message(input);
+      let result = request_message_with_length(input);
 
       assert_eq!(result, Error(Code(InputError::InvalidRequestSize.to_int())));
   }
@@ -158,7 +162,7 @@ mod tests {
         0x00, 0x00, 0x00, 0x00, // request_payload = []
         0x00, 0x00, 0x00, 0x00  // trailing data
       ];
-      let result = request_message(input);
+      let result = request_message_with_length(input);
       let expected = RequestMessage {
         api_version: 0,
         correlation_id: 0,
@@ -180,7 +184,7 @@ mod tests {
         0x00, 0x00, 0x00, 0x00, // request_payload = []
         0x00, 0x00, 0x00, 0x00  // trailing data
       ];
-      let result = request_message(input);
+      let result = request_message_with_length(input);
 
       assert_eq!(result, Incomplete(Needed::Unknown))
   }
@@ -195,7 +199,7 @@ mod tests {
         0x00, 0x00,             // client_id = ""
         0x00, 0x00, 0x00, 0x00  // request_payload = []
       ];
-      let result = request_message(input);
+      let result = request_message_with_length(input);
 
       // Will fail trying to parse request_payload's array length (4 bytes)
       assert_eq!(result, Incomplete(Needed::Size(4)))
