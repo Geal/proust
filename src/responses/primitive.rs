@@ -66,10 +66,16 @@ pub fn ser_kafka_string(string: KafkaString, output: &mut Vec<u8>) -> () {
 pub fn ser_kafka_array<F,O>(elems: &Vec<O>, closure: F, output: &mut Vec<u8>) -> ()
  where F : Fn(&O, &mut Vec<u8>) -> () {
   ser_i32(elems.len() as i32, output);
+  ser_kafka_array_without_size_prefix(elems, closure, output);
+}
+
+pub fn ser_kafka_array_without_size_prefix<F,O>(elems: &Vec<O>, closure: F, output: &mut Vec<u8>) -> ()
+ where F : Fn(&O, &mut Vec<u8>) -> () {
   for e in elems.iter() {
     closure(e, output);
   }
 }
+
 
 #[cfg(test)]
 

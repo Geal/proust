@@ -64,11 +64,29 @@ pub fn message_set<'a>(input: &'a [u8], size: i32) -> IResult<&'a [u8], MessageS
   flat_map!(input, ms_bytes, |msb| {
     chain!(
       msb,
-      ms: apply!(kafka_array, o_ms_message) ~
-      eof, || {
-        ms
+      messages: message_set_messages,
+      || {
+        messages
       })
   })
+}
+
+pub fn message_set_message<'a>(input: &'a [u8]) -> IResult<&'a [u8], MessageSet<'a>> {
+  chain!(
+    input,
+    m: o_ms_message ~
+    rest: message_set_messages, || {
+      let mut a = vec![m];
+      a.extend(rest);
+      a
+    }
+  )
+}
+
+pub fn message_set_messages<'a>(input: &'a [u8]) -> IResult<&'a [u8], MessageSet<'a>> {
+  alt!(input,
+    eof =>  { |_| vec![] }
+    | message_set_message)
 }
 
 #[derive(PartialEq, Debug)]
@@ -159,8 +177,7 @@ mod tests {
         0x00, 0x00,             // topic_name = ""
         0x00, 0x00, 0x00, 0x01, // partitions array length = 1
             0x00, 0x00, 0x00, 0x01, // partition = 1
-            0x00, 0x00, 0x00, 0x1e, // message_set size = 30
-            0x00, 0x00, 0x00, 0x01, // message_set array length = 1
+            0x00, 0x00, 0x00, 0x1a, // message_set size = 26
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
                 0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
                     0xe3, 0x8a, 0x68, 0x76, // crc
@@ -193,8 +210,7 @@ mod tests {
   fn partition_message_set_tests() {
       let input = &[
         0x00, 0x00, 0x00, 0x01, // partition = 1
-        0x00, 0x00, 0x00, 0x1e, // message_set size = 30
-        0x00, 0x00, 0x00, 0x01, // message_set array length = 1
+        0x00, 0x00, 0x00, 0x1a, // message_set size = 26
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
             0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
                 0xe3, 0x8a, 0x68, 0x76, // crc
@@ -223,7 +239,6 @@ mod tests {
   #[test]
   fn message_set_tests() {
       let input = &[
-        0x00, 0x00, 0x00, 0x01, // message_set array length = 1
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
             0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
                 0xe3, 0x8a, 0x68, 0x76, // crc
@@ -232,7 +247,7 @@ mod tests {
                 0x00, 0x00, 0x00, 0x00, // key = []
                 0x00, 0x00, 0x00, 0x00  // value = []
       ];
-      let result = message_set(input, 30);
+      let result = message_set(input, 26);
       let expected = vec![
         OMsMessage {
           offset: 1,
@@ -251,7 +266,6 @@ mod tests {
   #[test]
   fn message_set_trailing_tests() {
       let input = &[
-        0x00, 0x00, 0x00, 0x01, // message_set array length = 1
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
             0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
                 0xe3, 0x8a, 0x68, 0x76, // crc
@@ -261,7 +275,7 @@ mod tests {
                 0x00, 0x00, 0x00, 0x00,  // value = []
         0x00, 0x00, 0x00, 0x00, // trailing
       ];
-      let result = message_set(input, 30);
+      let result = message_set(input, 26);
       let expected = vec![
         OMsMessage {
           offset: 1,
@@ -280,7 +294,6 @@ mod tests {
   #[test]
   fn message_set_too_short_tests() {
       let input = &[
-        0x00, 0x00, 0x00, 0x01, // message_set array length = 1
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
             0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
                 0xe3, 0x8a, 0x68, 0x76, // crc
@@ -297,7 +310,6 @@ mod tests {
   #[test]
   fn message_set_too_long_tests() {
       let input = &[
-        0x00, 0x00, 0x00, 0x01, // message_set array length = 1
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
             0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
                 0xe3, 0x8a, 0x68, 0x76, // crc
@@ -306,9 +318,9 @@ mod tests {
                 0x00, 0x00, 0x00, 0x00, // key = []
                 0x00, 0x00, 0x00, 0x00  // value = []
       ];
-      let result = message_set(input, 28);
+      let result = message_set(input, 20);
 
-      assert_eq!(result, Incomplete(Needed::Unknown));
+      assert!(result.is_err());
   }
 
   #[test]

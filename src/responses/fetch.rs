@@ -43,7 +43,7 @@ pub fn ser_fetch_response(response: FetchResponse, output: &mut Vec<u8>) -> () {
 }
 
 pub fn ser_message_set(message_set: &MessageSet, output: &mut Vec<u8>) -> () {
-  ser_kafka_array(message_set, |oms, oo| {
+  ser_kafka_array_without_size_prefix(message_set, |oms, oo| {
     let OMsMessage { offset, ref message } = *oms;
     let mut m_output: Vec<u8> = vec![];
     ser_message(message, &mut m_output);
@@ -105,8 +105,7 @@ mod tests {
               0x00, 0x00, 0x00, 0x00,                         // partition_id = 0
               0x00, 0x00,                                     // error_code = 0
               0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // highwater_mark_offset = 0
-              0x00, 0x00, 0x00, 0x1e,                         // message_set_size = 30
-                  0x00, 0x00, 0x00, 0x01, // message_set array length = 1
+              0x00, 0x00, 0x00, 0x1a,                         // message_set_size = 26
                       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // offset = 0
                       0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
                           0xe3, 0x8a, 0x68, 0x76, // crc
@@ -131,7 +130,6 @@ mod tests {
     }], &mut v);
 
     assert_eq!(&v[..], &[
-      0x00, 0x00, 0x00, 0x01, // message_set array length = 1
           0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // offset = 0
           0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
               0xe3, 0x8a, 0x68, 0x76, // crc
