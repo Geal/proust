@@ -22,8 +22,8 @@ use responses::offset_fetch::*;
 
 #[derive(Debug,PartialEq)]
 pub struct ResponseMessage<'a> {
-  correlation_id: i32,
-  response_payload: ResponsePayload<'a>
+  pub correlation_id: i32,
+  pub response_payload: ResponsePayload<'a>
 }
 
 #[derive(Debug,PartialEq)]

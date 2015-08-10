@@ -19,10 +19,10 @@ use parser::consumer_metadata::*;
 
 #[derive(PartialEq,Debug)]
 pub struct RequestMessage<'a> {
-    api_version: i16,
-    correlation_id: i32,
-    client_id: KafkaString<'a>,
-    request_payload: RequestPayload<'a>
+    pub api_version: i16,
+    pub correlation_id: i32,
+    pub client_id: KafkaString<'a>,
+    pub request_payload: RequestPayload<'a>
 }
 
 // ToDo other requests

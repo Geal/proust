@@ -28,31 +28,31 @@ MetadataResponse => [Broker][TopicMetadata]
 
 #[derive(Debug,PartialEq)]
 pub struct MetadataResponse<'a> {
-  brokers: Vec<Broker<'a>>,
-  topics: Vec<TopicMetadata<'a>>
+  pub brokers: Vec<Broker<'a>>,
+  pub topics: Vec<TopicMetadata<'a>>
 }
 
 #[derive(Debug,PartialEq)]
 pub struct Broker<'a> {
-  node_id: i32,
-  host: KafkaString<'a>,
-  port: i32
+  pub node_id: i32,
+  pub host: KafkaString<'a>,
+  pub port: i32
 }
 
 #[derive(Debug,PartialEq)]
 pub struct TopicMetadata<'a> {
-  topic_error_code: i16,
-  topic_name: KafkaString<'a>,
-  partitions: Vec<PartitionMetadata>
+  pub topic_error_code: i16,
+  pub topic_name: KafkaString<'a>,
+  pub partitions: Vec<PartitionMetadata>
 }
 
 #[derive(Debug,PartialEq)]
 pub struct PartitionMetadata {
-  partition_error_code: i16,
-  partition_id: i32,
-  leader: i32,
-  replicas: Vec<i32>,
-  isr: Vec<i32>
+  pub partition_error_code: i16,
+  pub partition_id: i32,
+  pub leader: i32,
+  pub replicas: Vec<i32>,
+  pub isr: Vec<i32>
 }
 
 

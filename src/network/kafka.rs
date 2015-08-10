@@ -9,8 +9,12 @@ use mio::*;
 use mio::buf::{RingBuf,ByteBuf,MutByteBuf,SliceBuf,MutSliceBuf};
 use util::monitor;
 use storage::{self,storage};
-use nom::HexDisplay;
+use nom::{IResult,HexDisplay};
 use network::handler::*;
+
+use parser::request::request_message;
+use responses::response::ser_response_message;
+use proust::handle_request;
 
 const SERVER: Token = Token(0);
 
@@ -51,6 +55,18 @@ impl NetworkClient for Client {
     }
     buffer.read_slice(&mut res[..]);
     println!("handle_message got {} bytes:\n{}", (&res[..]).len(), (&res[..]).to_hex(8));
+
+    let parsed_request_message = request_message(&res[..]);
+    if let IResult::Done(_, req) = parsed_request_message {
+      if let Ok(res) = handle_request(req) {
+        let mut v: Vec<u8> = Vec::new();
+        ser_response_message(res, &mut v);
+        let write_res = self.write(&v[..]);
+      }
+    } else {
+      println!("Got error {:?}", parsed_request_message);
+    }
+
     ClientErr::Continue
   }
 }

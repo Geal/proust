@@ -11,17 +11,19 @@ extern crate mio;
 extern crate crc;
 
 mod parser;
-use parser::request::*;
+mod storage;
+mod network;
+mod responses;
+mod util;
+mod proust;
+
 use std::error::Error;
 use std::thread;
 use std::sync::mpsc::{channel,Sender,Receiver};
 
-mod storage;
-mod network;
-mod responses;
+use parser::request::*;
 use responses::response::*;
 
-mod util;
 
 fn main() {
   //storage::storage_test();
