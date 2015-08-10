@@ -64,11 +64,29 @@ pub fn message_set<'a>(input: &'a [u8], size: i32) -> IResult<&'a [u8], MessageS
   flat_map!(input, ms_bytes, |msb| {
     chain!(
       msb,
-      ms: apply!(kafka_array, o_ms_message) ~
-      eof, || {
-        ms
+      messages: message_set_messages,
+      || {
+        messages
       })
   })
+}
+
+pub fn message_set_message<'a>(input: &'a [u8]) -> IResult<&'a [u8], MessageSet<'a>> {
+  chain!(
+    input,
+    m: o_ms_message ~
+    rest: message_set_messages, || {
+      let mut a = vec![m];
+      a.extend(rest);
+      a
+    }
+  )
+}
+
+pub fn message_set_messages<'a>(input: &'a [u8]) -> IResult<&'a [u8], MessageSet<'a>> {
+  alt!(input,
+    eof =>  { |_| vec![] }
+    | message_set_message)
 }
 
 #[derive(PartialEq, Debug)]

@@ -43,7 +43,7 @@ pub fn ser_fetch_response(response: FetchResponse, output: &mut Vec<u8>) -> () {
 }
 
 pub fn ser_message_set(message_set: &MessageSet, output: &mut Vec<u8>) -> () {
-  ser_kafka_array(message_set, |oms, oo| {
+  ser_kafka_array_without_size_prefix(message_set, |oms, oo| {
     let OMsMessage { offset, ref message } = *oms;
     let mut m_output: Vec<u8> = vec![];
     ser_message(message, &mut m_output);
