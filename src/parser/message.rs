@@ -159,8 +159,7 @@ mod tests {
         0x00, 0x00,             // topic_name = ""
         0x00, 0x00, 0x00, 0x01, // partitions array length = 1
             0x00, 0x00, 0x00, 0x01, // partition = 1
-            0x00, 0x00, 0x00, 0x1e, // message_set size = 30
-            0x00, 0x00, 0x00, 0x01, // message_set array length = 1
+            0x00, 0x00, 0x00, 0x1a, // message_set size = 26
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
                 0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
                     0xe3, 0x8a, 0x68, 0x76, // crc
@@ -193,8 +192,7 @@ mod tests {
   fn partition_message_set_tests() {
       let input = &[
         0x00, 0x00, 0x00, 0x01, // partition = 1
-        0x00, 0x00, 0x00, 0x1e, // message_set size = 30
-        0x00, 0x00, 0x00, 0x01, // message_set array length = 1
+        0x00, 0x00, 0x00, 0x1a, // message_set size = 26
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
             0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
                 0xe3, 0x8a, 0x68, 0x76, // crc
@@ -223,7 +221,6 @@ mod tests {
   #[test]
   fn message_set_tests() {
       let input = &[
-        0x00, 0x00, 0x00, 0x01, // message_set array length = 1
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
             0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
                 0xe3, 0x8a, 0x68, 0x76, // crc
@@ -232,7 +229,7 @@ mod tests {
                 0x00, 0x00, 0x00, 0x00, // key = []
                 0x00, 0x00, 0x00, 0x00  // value = []
       ];
-      let result = message_set(input, 30);
+      let result = message_set(input, 26);
       let expected = vec![
         OMsMessage {
           offset: 1,
@@ -251,7 +248,6 @@ mod tests {
   #[test]
   fn message_set_trailing_tests() {
       let input = &[
-        0x00, 0x00, 0x00, 0x01, // message_set array length = 1
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
             0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
                 0xe3, 0x8a, 0x68, 0x76, // crc
@@ -261,7 +257,7 @@ mod tests {
                 0x00, 0x00, 0x00, 0x00,  // value = []
         0x00, 0x00, 0x00, 0x00, // trailing
       ];
-      let result = message_set(input, 30);
+      let result = message_set(input, 26);
       let expected = vec![
         OMsMessage {
           offset: 1,
@@ -280,7 +276,6 @@ mod tests {
   #[test]
   fn message_set_too_short_tests() {
       let input = &[
-        0x00, 0x00, 0x00, 0x01, // message_set array length = 1
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
             0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
                 0xe3, 0x8a, 0x68, 0x76, // crc
@@ -297,7 +292,6 @@ mod tests {
   #[test]
   fn message_set_too_long_tests() {
       let input = &[
-        0x00, 0x00, 0x00, 0x01, // message_set array length = 1
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // offset = 1
             0x00, 0x00, 0x00, 0x0e,                         // message_size = 14
                 0xe3, 0x8a, 0x68, 0x76, // crc
@@ -306,9 +300,9 @@ mod tests {
                 0x00, 0x00, 0x00, 0x00, // key = []
                 0x00, 0x00, 0x00, 0x00  // value = []
       ];
-      let result = message_set(input, 28);
+      let result = message_set(input, 20);
 
-      assert_eq!(result, Incomplete(Needed::Unknown));
+      assert!(result.is_err());
   }
 
   #[test]
