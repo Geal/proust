@@ -54,17 +54,21 @@ impl NetworkClient for Client {
       res.set_len(size);
     }
     buffer.read_slice(&mut res[..]);
-    println!("handle_message got {} bytes:\n{}", (&res[..]).len(), (&res[..]).to_hex(8));
 
     let parsed_request_message = request_message(&res[..]);
     if let IResult::Done(_, req) = parsed_request_message {
-      if let Ok(res) = handle_request(req) {
+      println!("Got request: {:?}", req);
+      let response = handle_request(req);
+      if let Ok(res) = response {
+        println!("Writing response: {:?}", res);
         let mut v: Vec<u8> = Vec::new();
         ser_response_message(res, &mut v);
         let write_res = self.write(&v[..]);
+      } else {
+        println!("Got request handling error {:?}", response);
       }
     } else {
-      println!("Got error {:?}", parsed_request_message);
+      println!("Got request parsing error {:?}\n{}", parsed_request_message, (&res[..]).to_hex(8));
     }
 
     ClientErr::Continue

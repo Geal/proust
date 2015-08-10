@@ -4,7 +4,6 @@ use responses::metadata::{MetadataResponse,Broker,TopicMetadata,PartitionMetadat
 
 
 pub fn handle_request(req: RequestMessage) -> Result<ResponseMessage,u8> {
-    println!("Got request: {:?}", req);
     match req.request_payload {
       RequestPayload::MetadataRequest(_) => {
         Ok(ResponseMessage {
