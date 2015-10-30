@@ -4,7 +4,7 @@
 use parser::primitive::*;
 use parser::errors::*;
 
-use nom::{HexDisplay,Needed,IResult,FileProducer,be_i8,be_i16,be_i32,be_i64,be_f32, eof};
+use nom::{HexDisplay,Needed,IResult,ErrorKind,FileProducer,be_i8,be_i16,be_i32,be_i64,be_f32, eof};
 use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
 use nom::Err::*;
@@ -46,10 +46,10 @@ pub fn parse_request_payload<'a>(input:&'a [u8], api_version: i16, api_key: i16)
 
         // Non user-facing control APIs
         // Given proust topology, implementing all of them may not be necessary
-        4  => Error(Code(InputError::NotImplemented.to_int())), // LeaderAndIsr
-        5  => Error(Code(InputError::NotImplemented.to_int())), // StopReplica
-        6  => Error(Code(InputError::NotImplemented.to_int())), // UpdateMetadata
-        7  => Error(Code(InputError::NotImplemented.to_int())), // ControlledShutdown
+        4  => Error(Code(ErrorKind::Custom(InputError::NotImplemented.to_int()))), // LeaderAndIsr
+        5  => Error(Code(ErrorKind::Custom(InputError::NotImplemented.to_int()))), // StopReplica
+        6  => Error(Code(ErrorKind::Custom(InputError::NotImplemented.to_int()))), // UpdateMetadata
+        7  => Error(Code(ErrorKind::Custom(InputError::NotImplemented.to_int()))), // ControlledShutdown
 
         8  => {
            let pp = |i| { offset_commit_request(i, api_version) };
@@ -60,10 +60,10 @@ pub fn parse_request_payload<'a>(input:&'a [u8], api_version: i16, api_key: i16)
 
         // Not documented, but those exist in the code
         // Given proust topology, implementing all of them may not be necessary
-        11 => Error(Code(InputError::NotImplemented.to_int())), // JoinGroup
-        12 => Error(Code(InputError::NotImplemented.to_int())), // Heartbeat
+        11 => Error(Code(ErrorKind::Custom(InputError::NotImplemented.to_int()))), // JoinGroup
+        12 => Error(Code(ErrorKind::Custom(InputError::NotImplemented.to_int()))), // Heartbeat
 
-        _  => Error(Code(InputError::ParserError.to_int()))
+        _  => Error(Code(ErrorKind::Custom(InputError::ParserError.to_int())))
     }
 }
 
@@ -74,7 +74,7 @@ pub fn request_message_with_length<'a>(input:&'a [u8]) -> IResult<&'a [u8], Requ
         if size >= 0 {
           take!(i, size as usize)
         } else {
-          Error(Code(InputError::InvalidRequestSize.to_int()))
+          Error(Code(ErrorKind::Custom(InputError::InvalidRequestSize.to_int())))
         }
       };
       flat_map!(i, request_bytes, |rb| {
@@ -148,7 +148,7 @@ mod tests {
       ];
       let result = request_message_with_length(input);
 
-      assert_eq!(result, Error(Code(InputError::InvalidRequestSize.to_int())));
+      assert_eq!(result, Error(Code(ErrorKind::Custom(InputError::InvalidRequestSize.to_int()))));
   }
 
   #[test]

@@ -1,6 +1,6 @@
 use parser::primitive::*;
 
-use nom::{HexDisplay,Needed,IResult,FileProducer, be_u8, be_i8, be_i16, be_i32, be_i64, eof};
+use nom::{HexDisplay,Needed,IResult,ErrorKind,FileProducer, be_u8, be_i8, be_i16, be_i32, be_i64, eof};
 use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
 use nom::Err::*;
@@ -177,9 +177,9 @@ pub fn buffer<'a>(input:&'a [u8]) -> IResult<&'a [u8], &'a [u8]> {
           return Incomplete(Needed::Size(length as usize))
         }
       } else if length == -1 {
-        Error(Code(InputError::NotImplemented.to_int())) // TODO maybe make an optional parser which returns an option?
+        Error(Code(ErrorKind::Custom(InputError::NotImplemented.to_int()))) // TODO maybe make an optional parser which returns an option?
       } else {
-        Error(Code(InputError::ParserError.to_int()))
+        Error(Code(ErrorKind::Custom(InputError::ParserError.to_int())))
       }
     }
     Error(e)      => Error(e),

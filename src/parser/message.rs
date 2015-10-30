@@ -3,7 +3,7 @@
 
 use parser::primitive::*;
 
-use nom::{HexDisplay,Needed,IResult,FileProducer, be_i8, be_i16, be_i32, be_i64, eof};
+use nom::{HexDisplay,Needed,IResult,ErrorKind,FileProducer, be_i8, be_i16, be_i32, be_i64, eof};
 use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
 use nom::Err::*;
@@ -57,7 +57,7 @@ pub fn message_set<'a>(input: &'a [u8], size: i32) -> IResult<&'a [u8], MessageS
     if size >= 0 {
       take!(i, size as usize)
     } else {
-      Error(Code(InputError::InvalidMessageSetSize.to_int()))
+      Error(Code(ErrorKind::Custom(InputError::InvalidMessageSetSize.to_int())))
     }
   };
 
@@ -123,7 +123,7 @@ pub fn message<'a>(input: &'a [u8], size: i32) -> IResult<&'a [u8], Message<'a>>
     if size >= 0 {
       take!(i, sz)
     } else {
-      Error(Code(InputError::InvalidMessageSize.to_int()))
+      Error(Code(ErrorKind::Custom(InputError::InvalidMessageSize.to_int())))
     }
   };
 
@@ -138,7 +138,7 @@ pub fn message<'a>(input: &'a [u8], size: i32) -> IResult<&'a [u8], Message<'a>>
       if given_crc as u32 == computed_crc {
         Done(i, given_crc as u32)
       } else {
-        Error(Code(InputError::InvalidMessage.to_int()))
+        Error(Code(ErrorKind::Custom(InputError::InvalidMessage.to_int())))
       }
     })
   };
@@ -390,7 +390,7 @@ mod tests {
       let result = message(input, 12);
 
       // The CRC doesn't include the last two bytes so the check fails
-      assert_eq!(result, Error(Code(InputError::InvalidMessage.to_int())));
+      assert_eq!(result, Error(Position(ErrorKind::Custom(InputError::InvalidMessage.to_int()), &input[..])));
   }
 
   #[test]
@@ -404,6 +404,6 @@ mod tests {
       ];
       let result = message(input, 14);
 
-      assert_eq!(result, Error(Code(InputError::InvalidMessage.to_int())));
+      assert_eq!(result, Error(Position(ErrorKind::Custom(InputError::InvalidMessage.to_int()), &input[..])));
   }
 }
