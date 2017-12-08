@@ -15,6 +15,7 @@ use std;
 use std::sync::mpsc;
 use std::sync::mpsc::{channel,Sender,Receiver};
 use std::thread::{self,Thread,Builder};
+use std::io::Write;
 use util::monitor;
 use mio;
 use network;
@@ -82,7 +83,7 @@ impl<'a> Storage<'a> {
       self.grow();
     }
 
-    std::slice::bytes::copy_memory(src, &mut (self.data)[position..(position+length)]);
+    (self.data)[position..(position+length)].copy_from_slice(src);
     Some(())
   }
 
@@ -103,7 +104,7 @@ impl<'a> Storage<'a> {
   }
 }
 
-pub fn storage(out:&mio::Sender<network::handler::Message>, name: &str) -> Sender<Request> {
+pub fn storage(out:&Sender<network::handler::Message>, name: &str) -> Sender<Request> {
   let (tx,rx) = channel::<u8>();
   let mut v: Vec<u8> = Vec::new();
   let t2 = out.clone();
