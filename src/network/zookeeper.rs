@@ -1,20 +1,18 @@
-use std::thread::{self,Thread,Builder};
-use std::string::String;
-use std::sync::mpsc::{channel,Receiver};
-use std::collections::HashMap;
-
-use std::str;
 use mio::tcp::*;
 use mio::*;
-use mio::buf::{RingBuf,ByteBuf,MutByteBuf,SliceBuf,MutSliceBuf};
-use util::monitor;
+use bytes::{BytesMut, BufMut};
 use nom::HexDisplay;
 use nom::IResult;
-use parser::zookeeper;
-use responses;
-use network::handler::*;
 
-const SERVER: Token = Token(0);
+use std::thread;
+ use std::error::Error;
+
+use util::monitor;
+//use parser::zookeeper;
+//use responses;
+use network::handler::*;
+use network::handler::Client as ClientTrait;
+
 
 #[derive(Debug)]
 enum ZookeeperState {
@@ -24,14 +22,14 @@ enum ZookeeperState {
 
 struct Client {
   zookeeper_state: ZookeeperState,
-  network_state:   NetworkState
+  session:   Session
 }
 
-impl NetworkClient for Client {
-  fn new(stream: NonBlock<TcpStream>, index: usize) -> Client {
+impl ClientTrait for Client {
+  fn new(stream: TcpStream, index: usize) -> Client {
     Client {
       zookeeper_state: ZookeeperState::Connecting,
-      network_state: NetworkState {
+      session: Session {
         socket: stream,
         state: ClientState::Normal,
         token: index,
@@ -40,20 +38,20 @@ impl NetworkClient for Client {
     }
   }
 
-  fn network_state(&mut self) -> &mut NetworkState {
-    &mut self.network_state
+  fn session(&mut self) -> &mut Session {
+    &mut self.session
   }
 
-  fn handle_message(&mut self, buffer: &mut ByteBuf) -> ClientErr {
-    match self.zookeeper_state {
+  fn handle_message(&mut self, buffer: &mut BytesMut) -> ClientErr {
+    unimplemented!();
+    /* match self.zookeeper_state {
       ZookeeperState::Connecting => {
-        let size = buffer.remaining();
+        let size = buffer.remaining_mut();
         let mut res: Vec<u8> = Vec::with_capacity(size);
         unsafe {
           res.set_len(size);
         }
         buffer.read_slice(&mut res[..]);
-        //println!("connect state: {} bytes:\n{}", (&res[..]).len(), (&res[..]).to_hex(8));
 
         if let IResult::Done(i, o) =  zookeeper::connection_request(&res[..size]) {
           println!("connection request: {:?}", o);
@@ -87,13 +85,12 @@ impl NetworkClient for Client {
             let r = zookeeper::ReplyHeader{
               xid: -2,
               zxid: 1,
-              err:  0 //ZOK
+              err:  0
             };
             let mut v: Vec<u8> = Vec::new();
             let send_size = 16;
-            responses::primitive::ser_i32(send_size, &mut v);
+            responses::primitive::be_i32(send_size, &mut v);
             zookeeper::ser_reply_header(&r, &mut v);
-            //println!("sending {} bytes for ping:\n{}", v.len(), (&v[..]).to_hex(8));
             let write_res = self.write(&v[..]);
           } else {
             match header._type {
@@ -101,13 +98,6 @@ impl NetworkClient for Client {
                 println!("got get_children");
                 if let IResult::Done(i2, request) = zookeeper::get_children(i) {
                   println!("got children request: {:?}", request);
-                  /*let r = zookeeper::GetChildrenResponse{
-                    children: vec!["{\"jmx_port\":-1,\"timestamp\":\"1428512949385\",\"host\":\"127.0.0.1\",\"version\":1,\"port\":2181}"]
-                  };
-                  let mut v: Vec<u8> = Vec::new();
-                  zookeeper::ser_get_children_response(&r, &mut v);
-                  let write_res = self.write(&v[..]);
-                  */
                 }
               },
               x if x == zookeeper::OpCodes::GET_CHILDREN2 as i32 => {
@@ -130,13 +120,9 @@ impl NetworkClient for Client {
                     };
                     let send_size = 88+16-4;
                     let mut v: Vec<u8> = Vec::new();
-                    //let send_size = 4+88+16+4;
-                    responses::primitive::ser_i32(send_size, &mut v);
-                    //println!("size tag: {}", send_size);
+                    responses::primitive::be_i32(send_size, &mut v);
                     zookeeper::ser_reply_header(&r, &mut v);
-                    //println!("reply header:\n{}", (&v[..]).to_hex(8));
                     zookeeper::ser_get_children2_response(&rp, &mut v);
-                    //println!("sending {} bytes for get_children2:\n{}", v.len(), (&v[..]).to_hex(8));
                     let write_res = self.write(&v[..]);
                   } else {
                     println!("unknown GetChildren2 path: {}", request.path);
@@ -145,7 +131,6 @@ impl NetworkClient for Client {
               },
               x if x == zookeeper::OpCodes::GET_DATA as i32 => {
                 println!("got get_data");
-                //println!("remaining input ( {} bytes ):\n{}", i.len(), i.to_hex(8));
                 if let IResult::Done(i2, request) = zookeeper::get_data(i) {
                   println!("got data request: {:?}", request);
                   if request.path == "/brokers/ids/1234" {
@@ -158,17 +143,14 @@ impl NetworkClient for Client {
                     let r = zookeeper::ReplyHeader{
                       xid: header.xid,
                       zxid: 1,
-                      err:  0 //ZOK
+                      err:  0
                     };
                     let stat_size = 68;
                     let send_size = 4 + 16 + ((4 + rp.data.len()) + stat_size);
                     let mut v: Vec<u8> = Vec::new();
-                    responses::primitive::ser_i32(send_size as i32, &mut v);
-                    //println!("size tag: {}", send_size);
+                    responses::primitive::be_i32(send_size as i32, &mut v);
                     zookeeper::ser_reply_header(&r, &mut v);
-                    //println!("reply header:\n{}", (&v[..]).to_hex(8));
                     zookeeper::ser_get_data_response(&rp, &mut v);
-                    //println!("sending {} bytes for get_data:\n{}", v.len(), (&v[..]).to_hex(8));
                     let write_res = self.write(&v[..]);
                   } else {
                     println!("unknown GetData path: {}", request.path);
@@ -185,38 +167,17 @@ impl NetworkClient for Client {
         }
       }
     }
-    ClientErr::Continue
+    ClientErr::Continue*/
   }
 }
 
-pub struct ListenerMessage {
-  a: u8
-}
+pub fn start_listener(address: String) -> Result<thread::JoinHandle<()>, Box<Error>> {
+  let poll = Poll::new()?;
 
-pub struct Listener {
-  t: Thread,
-  rx: Receiver<u8>
-}
-
-pub fn start_listener(address: &str) -> (Sender<Message>,thread::JoinHandle<()>)  {
-  let mut event_loop:EventLoop<ProustHandler<Client>> = EventLoop::new().unwrap();
-  let t2 = event_loop.channel();
   let jg = thread::spawn(move || {
-    let listener = NonBlock::new(TcpListener::bind("127.0.0.1:2181").unwrap());
-    event_loop.register(&listener, SERVER).unwrap();
-    //let t = storage(&event_loop.channel(), "pouet");
-
-    event_loop.run(&mut ProustHandler {
-      listener: listener,
-      //storage_tx: t,
-      counter: 0,
-      token_index: 1, // 0 is the server socket
-      clients: HashMap::new(),
-      available_tokens: Vec::new()
-    }).unwrap();
-
+    let mut server = Server::<Client>::new(address.parse().unwrap(), poll);
+    server.run();
   });
 
-  (t2, jg)
+  Ok(jg)
 }
-

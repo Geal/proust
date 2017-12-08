@@ -1,37 +1,33 @@
-#![allow(dead_code)]
-#![allow(unused_imports)]
-#![feature(core)]
-#![feature(slice_bytes,rt)]
-#![cfg_attr(feature = "nightly", feature(std_misc))]
 extern crate core;
 extern crate mmap;
 extern crate mio;
+extern crate bytes;
+#[macro_use]
+extern crate log;
+extern crate env_logger;
 
-#[macro_use] extern crate nom;
+#[macro_use]
+extern crate nom;
 extern crate crc;
 
-mod parser;
+//mod parser;
 mod storage;
 mod network;
-mod responses;
+// mod responses;
 mod util;
-mod proust;
+// mod proust;
 
-use std::error::Error;
-use std::thread;
-use std::sync::mpsc::{channel,Sender,Receiver};
-
-use parser::request::*;
-use responses::response::*;
+// use parser::request::*;
+// use responses::response::*;
 
 
 fn main() {
-  //storage::storage_test();
-  println!("Le peintre original procède à la façon des oculistes.");
+  env_logger::init().expect("Can't init env_logger");
 
-  let (ztx, zjg) = network::zookeeper::start_listener("abcd");
-  let (ktx, kjg) = network::kafka::start_listener("abcd");
-  kjg.join();
+  storage::storage_test();
+
+  let zjg = network::zookeeper::start_listener("127.0.0.1:2088".to_string()).expect("start zookeeper");
+  let jg = network::kafka::start_listener("127.0.0.1:8080".to_string()).expect("start kafka");
   zjg.join();
+  jg.join();
 }
-
