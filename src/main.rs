@@ -10,7 +10,7 @@ extern crate env_logger;
 extern crate nom;
 extern crate crc;
 
-//mod parser;
+mod parser;
 mod storage;
 mod network;
 // mod responses;
