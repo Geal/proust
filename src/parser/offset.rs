@@ -6,7 +6,7 @@ use parser::primitive::*;
 use nom::{HexDisplay,Needed,IResult,FileProducer, be_i16, be_i32, be_i64};
 use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
-use nom::Err::*;
+use nom::ErrorKind;
 
 #[derive(PartialEq,Debug)]
 pub struct OffsetRequest<'a> {
@@ -15,15 +15,16 @@ pub struct OffsetRequest<'a> {
 }
 
 pub fn offset_request<'a>(input:&'a [u8]) -> IResult<&'a [u8], OffsetRequest<'a>> {
-  chain!(
+  do_parse!(
     input,
-    replica_id: be_i32 ~
-    topics: apply!(kafka_array, topic_offset), || {
+    replica_id: be_i32 >>
+    topics: apply!(kafka_array, topic_offset) >>
+    (
       OffsetRequest {
-        replica_id: replica_id,
-        topics: topics
+        replica_id,
+        topics,
       }
-    }
+    )
   )
 }
 
@@ -34,15 +35,16 @@ pub struct TopicOffset<'a> {
 }
 
 pub fn topic_offset<'a>(input:&'a [u8]) -> IResult<&'a [u8], TopicOffset<'a>> {
-  chain!(
+  do_parse!(
     input,
-    topic_name: kafka_string ~
-    partitions: apply!(kafka_array, partition_offset), || {
+    topic_name: kafka_string >>
+    partitions: apply!(kafka_array, partition_offset) >>
+    (
       TopicOffset {
-        topic_name: topic_name,
-        partitions: partitions
+        topic_name,
+        partitions,
       }
-    }
+    )
   )
 }
 
@@ -54,17 +56,18 @@ pub struct PartitionOffset {
 }
 
 pub fn partition_offset<'a>(input:&'a [u8]) -> IResult<&'a [u8], PartitionOffset> {
-  chain!(
+  do_parse!(
     input,
-    partition: be_i32 ~
-    time: be_i64 ~
-    max_number_of_offsets: be_i32, || {
+    partition: be_i32 >>
+    time: be_i64 >>
+    max_number_of_offsets: be_i32 >>
+    (
       PartitionOffset {
-        partition: partition,
-        time: time,
-        max_number_of_offsets: max_number_of_offsets
+        partition,
+        time,
+        max_number_of_offsets,
       }
-    }
+    )
   )
 }
 
