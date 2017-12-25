@@ -4,20 +4,13 @@
 extern crate mmap;
 
 use std::str;
-use std::os;
-
 use std::os::unix::io::AsRawFd;
 use std::fs::File;
 use std::fs::OpenOptions;
+use std::sync::mpsc::{channel,Sender};
+use std::thread;
 use mmap::{MemoryMap,MapOption};
 use core::slice::from_raw_parts_mut;
-use std;
-use std::sync::mpsc;
-use std::sync::mpsc::{channel,Sender,Receiver};
-use std::thread::{self,Thread,Builder};
-use std::io::Write;
-use util::monitor;
-use mio;
 use network;
 
 pub type Request  = u8;

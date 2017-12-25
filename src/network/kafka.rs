@@ -1,14 +1,11 @@
-use mio::net::{TcpListener, TcpStream};
+use mio::net::TcpStream;
 use mio::*;
 use bytes::{BytesMut, BufMut};
-use nom::{IResult, HexDisplay};
 
 use std::error::Error;
-use std::str;
 use std::thread;
 
 //use util::monitor;
-use storage::{self,storage};
 use network::handler::*;
 use network::handler::Client as ClientTrait;
 //use parser::request::request_message;

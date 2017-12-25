@@ -1,13 +1,10 @@
-use mio::tcp::*;
 use mio::*;
-use bytes::{BytesMut, BufMut};
-use nom::HexDisplay;
-use nom::IResult;
+use mio::tcp::TcpStream;
+use bytes::BytesMut;
 
 use std::thread;
- use std::error::Error;
+use std::error::Error;
 
-use util::monitor;
 //use parser::zookeeper;
 //use responses;
 use network::handler::*;

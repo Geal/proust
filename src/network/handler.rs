@@ -5,7 +5,6 @@ use bytes::{BytesMut, BufMut};
 use std::collections::HashMap;
 use std::io::{Read, Write, ErrorKind};
 use std::net::SocketAddr;
-use std::net::ToSocketAddrs;
 use std::error::Error;
 
 const SERVER: Token = Token(0);
