@@ -3,7 +3,7 @@ pub mod errors;
 // pub mod request;
 // pub mod produce;
 // pub mod message;
-// pub mod fetch;
+pub mod fetch;
 pub mod offset;
 pub mod metadata;
 pub mod offset_commit;

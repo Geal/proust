@@ -6,7 +6,6 @@ use parser::primitive::*;
 use nom::{HexDisplay,Needed,IResult,FileProducer, be_i16, be_i32, be_i64};
 use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
-use nom::Err::*;
 
 #[derive(PartialEq,Debug)]
 pub struct FetchRequest<'a> {
@@ -17,19 +16,20 @@ pub struct FetchRequest<'a> {
 }
 
 pub fn fetch_request<'a>(input:&'a [u8]) -> IResult<&'a [u8], FetchRequest<'a>> {
-  chain!(
+  do_parse!(
     input,
-    replica_id: be_i32 ~
-    max_wait_time: be_i32 ~
-    min_bytes: be_i32 ~
-    topics: apply!(kafka_array, topic_fetch), || {
+    replica_id: be_i32 >>
+    max_wait_time: be_i32 >>
+    min_bytes: be_i32 >>
+    topics: apply!(kafka_array, topic_fetch) >>
+    (
       FetchRequest {
-        replica_id: replica_id,
-        max_wait_time: max_wait_time,
-        min_bytes: min_bytes,
-        topics: topics
+        replica_id,
+        max_wait_time,
+        min_bytes,
+        topics,
       }
-    }
+    )
   )
 }
 
@@ -40,15 +40,16 @@ pub struct TopicFetch<'a> {
 }
 
 pub fn topic_fetch<'a>(input:&'a [u8]) -> IResult<&'a [u8], TopicFetch<'a>> {
-  chain!(
+  do_parse!(
     input,
-    topic_name: kafka_string ~
-    partitions: apply!(kafka_array, partition_fetch), || {
+    topic_name: kafka_string >>
+    partitions: apply!(kafka_array, partition_fetch) >>
+    (
       TopicFetch {
-        topic_name: topic_name,
-        partitions: partitions
+        topic_name,
+        partitions,
       }
-    }
+    )
   )
 }
 
@@ -60,17 +61,18 @@ pub struct PartitionFetch {
 }
 
 pub fn partition_fetch<'a>(input:&'a [u8]) -> IResult<&'a [u8], PartitionFetch> {
-  chain!(
+  do_parse!(
     input,
-    partition: be_i32 ~
-    fetch_offset: be_i64 ~
-    max_bytes: be_i32, || {
+    partition: be_i32 >>
+    fetch_offset: be_i64 >>
+    max_bytes: be_i32 >>
+    (
       PartitionFetch {
-        partition: partition,
-        fetch_offset: fetch_offset,
-        max_bytes: max_bytes
+        partition,
+        fetch_offset,
+        max_bytes,
       }
-    }
+    )
   )
 }
 
