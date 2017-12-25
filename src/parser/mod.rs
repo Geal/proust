@@ -8,5 +8,5 @@ pub mod offset;
 pub mod metadata;
 pub mod offset_commit;
 pub mod offset_fetch;
-// pub mod consumer_metadata;
+pub mod consumer_metadata;
 // pub mod zookeeper;

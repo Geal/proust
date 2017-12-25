@@ -6,7 +6,6 @@ use parser::primitive::*;
 use nom::{HexDisplay,Needed,IResult,FileProducer};
 use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
-use nom::Err::*;
 
 pub type ConsumerMetadataRequest<'a> = KafkaString<'a>;
 
