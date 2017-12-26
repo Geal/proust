@@ -1,6 +1,6 @@
 pub mod primitive;
 pub mod errors;
-//pub mod request;
+pub mod request;
 pub mod produce;
 pub mod message;
 pub mod fetch;

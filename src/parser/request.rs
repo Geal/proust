@@ -111,8 +111,6 @@ mod tests {
   use nom::*;
   use nom::IResult::*;
 
-  use nom::Err::*;
-
   use parser::errors::*;
 
   #[test]
