@@ -1,8 +1,8 @@
 pub mod primitive;
 pub mod errors;
-// pub mod request;
-// pub mod produce;
-// pub mod message;
+//pub mod request;
+pub mod produce;
+pub mod message;
 pub mod fetch;
 pub mod offset;
 pub mod metadata;
