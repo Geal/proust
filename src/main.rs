@@ -13,7 +13,7 @@ extern crate crc;
 mod parser;
 mod storage;
 mod network;
-// mod responses;
+mod responses;
 mod util;
 // mod proust;
 
