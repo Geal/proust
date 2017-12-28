@@ -1,16 +1,17 @@
 use mio::net::TcpStream;
 use mio::*;
 use bytes::{BytesMut, BufMut};
+use nom::IResult;
+use nom::HexDisplay;
 
 use std::error::Error;
 use std::thread;
 
-//use util::monitor;
 use network::handler::*;
 use network::handler::Client as ClientTrait;
-//use parser::request::request_message;
-//use responses::response::ser_response_message;
-//use proust::handle_request;
+use parser::request::request_message;
+use responses::response::ser_response_message;
+use proust::handle_request;
 
 const SERVER: Token = Token(0);
 const EVENTS_BUF_SIZE: usize = 1024;
@@ -42,7 +43,7 @@ impl ClientTrait for Client {
       res.set_len(size);
     }
 
-    /* buffer.read_slice(&mut res[..]);
+    buffer.put_slice(&mut res[..]);
 
     let parsed_request_message = request_message(&res[..]);
     if let IResult::Done(_, req) = parsed_request_message {
@@ -58,7 +59,7 @@ impl ClientTrait for Client {
       }
     } else {
       println!("Got request parsing error {:?}\n{}", parsed_request_message, (&res[..]).to_hex(8));
-    } */
+    }
 
     ClientErr::Continue
   }
