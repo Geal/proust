@@ -2,7 +2,7 @@
 pub mod primitive;
 //pub mod consumer_metadata;
 //pub mod produce;
-//pub mod metadata;
+pub mod metadata;
 //pub mod fetch;
 //pub mod offset;
 //pub mod offset_commit;
