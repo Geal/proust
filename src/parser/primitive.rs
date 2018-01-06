@@ -121,7 +121,7 @@ mod tests {
   #[test]
   fn kafka_array_test() {
     assert_eq!(kafka_array(&[0x00, 0x00, 0x00, 0x00], be_i8), Done(&[][..], vec![]));
-    assert_eq!(kafka_array(&[0x00, 0x00, 0x00, 0x01], be_i8), Incomplete(Needed::Unknown)); //FIXME: test fail
+    assert_eq!(kafka_array(&[0x00, 0x00, 0x00, 0x01], be_i8), Incomplete(Needed::Size(1)));
     assert_eq!(kafka_array(&[0x00, 0x00, 0x00, 0x01, 0x00], be_i8), Done(&[][..], vec![0x00]));
     assert_eq!(kafka_array(&[0x00, 0x00, 0x00, 0x01, 0x00, 0x00], be_i8), Done(&[0x00][..], vec![0x00]));
     assert_eq!(kafka_array(&[0x80, 0x00, 0x00, 0x00], be_i8), Error(Custom(InputError::ParserError.to_int())));
