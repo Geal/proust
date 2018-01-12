@@ -18,6 +18,8 @@ mod util;
 mod proust;
 
 fn main() {
+  println!("Le peintre original procède à la façon des oculistes.");
+
   env_logger::init().expect("Can't init env_logger");
 
   storage::storage_test();
