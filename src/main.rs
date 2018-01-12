@@ -22,8 +22,7 @@ fn main() {
 
   storage::storage_test();
 
-  let zjg = network::zookeeper::start_listener("127.0.0.1:2088".to_string()).expect("start zookeeper");
   let jg = network::kafka::start_listener("127.0.0.1:8080".to_string()).expect("start kafka");
-  zjg.join();
+
   jg.join();
 }
