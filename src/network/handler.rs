@@ -2,6 +2,8 @@ use mio::*;
 use mio::net::{TcpListener, TcpStream};
 use mio::unix::UnixReady;
 use bytes::{BytesMut, BufMut};
+use nom::be_u32;
+use nom::IResult::*;
 use std::collections::HashMap;
 use std::io::{Read, Write, ErrorKind};
 use std::net::SocketAddr;
@@ -54,7 +56,7 @@ pub trait Client {
   }
 
   fn read_size(&mut self) -> ClientResult {
-    let mut size_buf = BytesMut::with_capacity(4);
+    let mut size_buf: [u8; 4] = [0; 4];
 
     match self.socket().read(&mut size_buf) {
       Ok(size) => {
@@ -62,13 +64,10 @@ pub trait Client {
           Err(ClientErr::Continue)
         }
         else {
-          // Please forgive me...
-          let b1 = size_buf.get(0).unwrap_or(&0);
-          let b2 = size_buf.get(1).unwrap_or(&0);
-          let b3 = size_buf.get(2).unwrap_or(&0);
-          let b4 = size_buf.get(3).unwrap_or(&0);
-          let sz = ((*b1 as u32) << 24) + ((*b2 as u32) << 16) + ((*b3 as u32) << 8) + *b4 as u32;
-          Ok(sz as usize)
+          match be_u32(&size_buf) {
+            Done(buf, size) => Ok(size as usize),
+            _ => Err(ClientErr::Continue),
+          }
         }
       },
       Err(e) => {
