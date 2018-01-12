@@ -63,18 +63,7 @@ pub fn message_set<'a>(input: &'a [u8], size: i32) -> IResult<&'a [u8], MessageS
     }
   };
 
-  flat_map!(input, ms_bytes, |msb| toto(msb))
-}
-
-fn toto<'a>(msb: &'a [u8]) -> IResult<&'a [u8], MessageSet<'a>> {
-  do_parse!(
-    msb,
-    messages: message_set_messages >>
-    ({
-      let m = messages;
-      m
-    })
-  )
+  flat_map!(input, ms_bytes, message_set_messages)
 }
 
 pub fn message_set_message<'a>(input: &'a [u8]) -> IResult<&'a [u8], MessageSet<'a>> {
