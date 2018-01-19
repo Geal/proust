@@ -37,15 +37,7 @@ impl ClientTrait for Client {
   }
 
   fn handle_message(&mut self, buffer: &mut BytesMut) -> ClientErr {
-    let size = buffer.remaining_mut();
-    let mut res: Vec<u8> = Vec::with_capacity(size);
-    unsafe {
-      res.set_len(size);
-    }
-
-    buffer.put_slice(&mut res[..]);
-
-    let parsed_request_message = request_message(&res[..]);
+    let parsed_request_message = request_message(&buffer[..]);
     if let IResult::Done(_, req) = parsed_request_message {
       println!("Got request: {:?}", req);
       let response = handle_request(req);
@@ -58,7 +50,7 @@ impl ClientTrait for Client {
         println!("Got request handling error {:?}", response);
       }
     } else {
-      println!("Got request parsing error {:?}\n{}", parsed_request_message, (&res[..]).to_hex(8));
+      println!("Got request parsing error {:?}\n{}", parsed_request_message, (&buffer[..]).to_hex(8));
     }
 
     ClientErr::Continue
