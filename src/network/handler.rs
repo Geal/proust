@@ -120,10 +120,14 @@ pub trait Client {
   }
 
   fn write(&mut self, msg: &[u8]) -> ClientResult {
-    match self.socket().write(msg) {
-      Ok(size)  => Ok(size),
+    match self.socket().write_all(msg) {
+      Ok(_)  => Ok(msg.len()),
       Err(e) => {
         match e.kind() {
+          ErrorKind::Interrupted  => {
+            error!("Interrupted during write message, removing client");
+            Err(ClientErr::Continue)
+          },
           ErrorKind::BrokenPipe => {
             error!("broken pipe, removing client");
             Err(ClientErr::ShouldClose)
