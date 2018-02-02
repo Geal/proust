@@ -1,5 +1,5 @@
 extern crate core;
-extern crate mmap;
+extern crate memmap;
 extern crate mio;
 extern crate bytes;
 #[macro_use]
