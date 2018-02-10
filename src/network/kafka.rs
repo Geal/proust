@@ -13,9 +13,6 @@ use parser::request::request_message;
 use responses::response::ser_response_message;
 use proust::handle_request;
 
-const SERVER: Token = Token(0);
-const EVENTS_BUF_SIZE: usize = 1024;
-
 struct Client {
   session: Session
 }
@@ -45,7 +42,7 @@ impl ClientTrait for Client {
         println!("Writing response: {:?}", res);
         let mut v: Vec<u8> = Vec::new();
         ser_response_message(res, &mut v);
-        let write_res = self.write(&v[..]);
+        self.write(&v[..]);
       } else {
         println!("Got request handling error {:?}", response);
       }

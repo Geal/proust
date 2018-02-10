@@ -246,7 +246,7 @@ impl<C: Client> Server<C> {
   fn client_read(&mut self, tk: usize) {
     let mut error = false;
 
-    if let Some(mut client) = self.clients.get_mut(&tk) {
+    if let Some(client) = self.clients.get_mut(&tk) {
       match client.state() {
         ClientState::Normal => {
           match client.read_size() {
@@ -262,7 +262,6 @@ impl<C: Client> Server<C> {
                 client.set_buffer(buffer);
               }
               else {
-                let mut text = String::new();
                 if let ClientErr::ShouldClose = client.handle_message(&mut buffer) {
                   error = true;
                 }
@@ -290,7 +289,6 @@ impl<C: Client> Server<C> {
             client.set_buffer(buffer);
           }
           else {
-            let mut text = String::new();
             if let ClientErr::ShouldClose = client.handle_message(&mut buffer) {
               error = true;
             }
