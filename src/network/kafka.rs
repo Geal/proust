@@ -25,7 +25,7 @@ impl ClientTrait for Client {
     Client{
       session: Session {
         socket: stream,
-        state: ClientState::Normal,
+        state: ClientState::Connect,
         token: index,
         buffer: None
       }

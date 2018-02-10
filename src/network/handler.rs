@@ -8,6 +8,8 @@ use std::collections::HashMap;
 use std::io::{Read, Write, ErrorKind};
 use std::net::SocketAddr;
 use std::error::Error;
+use responses::metadata::*;
+use responses::response::*;
 
 const SERVER: Token = Token(0);
 
@@ -20,6 +22,7 @@ pub struct Session {
 
 #[derive(Debug,Clone)]
 pub enum ClientState {
+  Connect, // Actually the client just ask the metadatas
   Normal,
   Await(usize)
 }
@@ -290,7 +293,8 @@ impl<C: Client> Server<C> {
               error = true;
             }
           }
-        }
+        },
+       _ => { /* do nothing */ },
       };
     }
 
@@ -303,8 +307,48 @@ impl<C: Client> Server<C> {
 
   fn client_write(&mut self, token: usize) {
     if let Some(client) = self.clients.get_mut(&token) {
-      let s = b"";
-      client.write(s);
+      match client.state() {
+        ClientState::Connect => {
+          //TODO: Create a metadata registry.
+          // The definition will look like: Rc<RefCell<Slab<Topic>>>
+          let mut v: Vec<u8> = vec![];
+          let meta = MetadataResponse {
+            brokers: vec![Broker {
+              node_id: 1,
+              host: "127.0.0.1",
+              port: 8080
+            }],
+            topics: vec![TopicMetadata {
+              topic_error_code: 0,
+              topic_name: "my-topic",
+              partitions: vec![PartitionMetadata {
+                partition_error_code: 0,
+                partition_id: 0,
+                leader: 1,
+                replicas: vec![0],
+                isr: vec![0]
+              }]
+            }]
+          };
+
+          ser_response_message(
+            ResponseMessage {
+              correlation_id: 0,
+              response_payload: ResponsePayload::MetadataResponse(meta)
+            },
+            &mut v
+          );
+
+          client.write(&v).expect("Can't writte to the socket");
+          client.set_state(ClientState::Normal);
+        },
+        ClientState::Normal => {
+          //TODO: Look if we have something to write.
+        },
+        ClientState::Await(_) => {
+          // Do nothing, we are looking to read
+        },
+      }
     }
   }
 
