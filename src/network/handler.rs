@@ -200,11 +200,13 @@ impl<C: Client> Server<C> {
             if UnixReady::from(kind).is_hup() {
               self.close(t);
             }
-            else if UnixReady::from(kind).is_readable() {
-              self.client_read(t);
-            }
-            else {
+
+            if UnixReady::from(kind).is_writable() {
               self.client_write(t);
+            }
+
+            if UnixReady::from(kind).is_readable() {
+              self.client_read(t);
             }
           }
           _ => unimplemented!(),
