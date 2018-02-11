@@ -24,7 +24,7 @@ fn main() {
 
   storage::storage_test();
 
-  let jg = network::kafka::start_listener("127.0.0.1:8080".to_string()).expect("start kafka");
+  let jg = network::kafka::start_listener("127.0.0.1:9092".to_string()).expect("start kafka");
 
   jg.join();
 }
