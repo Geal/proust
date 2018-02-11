@@ -22,7 +22,7 @@ impl ClientTrait for Client {
     Client{
       session: Session {
         socket: stream,
-        state: ClientState::Connect,
+        state: ClientState::Normal,
         token: index,
         buffer: None
       }
@@ -33,7 +33,7 @@ impl ClientTrait for Client {
     &mut self.session
   }
 
-  fn handle_message(&mut self, buffer: &mut BytesMut) -> ClientErr {
+  fn handle_message(&mut self, buffer: &mut [u8]) -> ClientErr {
     let parsed_request_message = request_message(&buffer[..]);
     if let IResult::Done(_, req) = parsed_request_message {
       println!("Got request: {:?}", req);
