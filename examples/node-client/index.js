@@ -20,11 +20,11 @@ const kafka = require('kafka-node'),
     Client = kafka.KafkaClient; // New KafkaClient connects directly to Kafka brokers
                                 // instead of connecting to zookeeper for broker discovery.
 
-const topic = process.argv[1] || 'my-topic';
-const partition = process.argv[2] || 0;
-const attributes = process.argv[3] || 0;
+const topic = 'topic1';
+const partition = 0;
+const attributes = 0;
 
-const client = new Client({kafkaHost: '127.0.0.1:8080'});
+const client = new Client({kafkaHost: '127.0.0.1:9092'});
 const producer = new Producer(client);
 
 

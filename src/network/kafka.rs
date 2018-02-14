@@ -36,10 +36,10 @@ impl ClientTrait for Client {
   fn handle_message(&mut self, buffer: &mut [u8]) -> ClientErr {
     let parsed_request_message = request_message(&buffer[..]);
     if let IResult::Done(_, req) = parsed_request_message {
-      println!("Got request: {:?}", req);
+      println!("Got request: {:#?}", req);
       let response = handle_request(req);
       if let Ok(res) = response {
-        println!("Writing response: {:?}", res);
+        println!("Writing response: {:#?}", res);
         let mut v: Vec<u8> = Vec::new();
         ser_response_message(res, &mut v);
         self.write(&v[..]);
