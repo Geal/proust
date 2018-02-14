@@ -1,23 +1,15 @@
 //#![feature(core)]
 
 //extern crate core;
-extern crate mmap;
-
 use std::str;
-use std::os;
-
 use std::os::unix::io::AsRawFd;
 use std::fs::File;
 use std::fs::OpenOptions;
-use mmap::{MemoryMap,MapOption};
+use std::sync::mpsc::{channel,Sender};
+use std::thread;
 use core::slice::from_raw_parts_mut;
-use std;
-use std::sync::mpsc;
-use std::sync::mpsc::{channel,Sender,Receiver};
-use std::thread::{self,Thread,Builder};
-use util::monitor;
-use mio;
 use network;
+use memmap::MmapMut;
 
 pub type Request  = u8;
 pub type Response = u8;
@@ -27,7 +19,7 @@ pub struct Storage<'a> {
   file:     File,
   data:     &'a mut [u8],
   size:     usize,
-  map:      MemoryMap
+  map:      MmapMut,
 }
 
 impl<'a> Storage<'a> {
@@ -45,24 +37,19 @@ impl<'a> Storage<'a> {
         }
       }
 
-      let fd = file.as_raw_fd();
-      let mut options: Vec<MapOption> = Vec::new();
-      options.push(MapOption::MapWritable);
-      options.push(MapOption::MapFd(fd));
-      options.push(MapOption::MapOffset(0));
-      options.push(MapOption::MapReadable);
-      let mut mm = MemoryMap::new(size, &options[..]).unwrap();
-      let mut sl: &mut[u8] = unsafe {from_raw_parts_mut(mm.data(), mm.len())};
+      let mut mm = unsafe { MmapMut::map_mut(&file).expect("Can't mmap file") };
+      let mut sl: &mut[u8] = unsafe { from_raw_parts_mut(mm.as_mut_ptr(), mm.len()) };
 
       println!("data2:\n{}", str::from_utf8(sl).unwrap());
       sl[0] = 0x41;
       sl[1] = 0x42;
       println!("data3:\n{}", str::from_utf8(sl).unwrap());
-      println!("msync result: {:?}", mm.msync());
+      println!("msync result: {:?}", mm.flush_async());
       println!("data4:\n{}", str::from_utf8(sl).unwrap());
 
       Some(Storage{ filename: filename, file: file, data: sl, size: size, map: mm })
-    } else {
+    }
+    else {
       None
     }
   }
@@ -82,7 +69,7 @@ impl<'a> Storage<'a> {
       self.grow();
     }
 
-    std::slice::bytes::copy_memory(src, &mut (self.data)[position..(position+length)]);
+    (self.data)[position..(position+length)].copy_from_slice(src);
     Some(())
   }
 
@@ -90,20 +77,15 @@ impl<'a> Storage<'a> {
     self.file.set_len((self.size + 4096) as u64);
     self.size = self.size + 4096;
     let fd = self.file.as_raw_fd();
-    let mut options: Vec<MapOption> = Vec::new();
-    options.push(MapOption::MapWritable);
-    options.push(MapOption::MapFd(fd));
-    options.push(MapOption::MapOffset(0));
-    options.push(MapOption::MapReadable);
+    let mut mm = unsafe { MmapMut::map_mut(&self.file).expect("Can't mmap file") };
+    let mut sl: &mut[u8] = unsafe { from_raw_parts_mut(mm.as_mut_ptr(), mm.len()) };
     println!("creating a map of size {}", self.size);
-    let mut mm = MemoryMap::new(self.size, &options[..]).unwrap();
-    let mut sl: &mut[u8] = unsafe {from_raw_parts_mut(mm.data(), mm.len())};
     self.map  = mm;
     self.data = sl;
   }
 }
 
-pub fn storage(out:&mio::Sender<network::handler::Message>, name: &str) -> Sender<Request> {
+pub fn storage(out:&Sender<network::handler::Message>, name: &str) -> Sender<Request> {
   let (tx,rx) = channel::<u8>();
   let mut v: Vec<u8> = Vec::new();
   let t2 = out.clone();
@@ -126,7 +108,7 @@ pub fn storage(out:&mio::Sender<network::handler::Message>, name: &str) -> Sende
 
 
 pub fn storage_test() {
-  if let Some(mut st) = Storage::create("pouet.txt") {
+  if let Some(mut st) = Storage::create("storage_test.txt") {
     //println!("data: {:?}", st.data);
     println!("{:?}", str::from_utf8(st.read(0, 2).unwrap()));
     println!("{:?}", str::from_utf8(st.read(0, 10).unwrap()));

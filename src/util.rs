@@ -1,4 +1,4 @@
-use std::thread::{self,Thread,Builder};
+use std::thread;
 
 #[cfg(not(feature = "nightly"))]
 pub fn monitor<F, R>(f: F, restart_count: u8) -> Result<R, u8>

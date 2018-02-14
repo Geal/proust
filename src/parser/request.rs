@@ -4,10 +4,9 @@
 use parser::primitive::*;
 use parser::errors::*;
 
-use nom::{HexDisplay,Needed,IResult,ErrorKind,FileProducer,be_i8,be_i16,be_i32,be_i64,be_f32, eof};
+use nom::{HexDisplay,Needed,IResult,ErrorKind,FileProducer,be_i8,be_i16,be_i32,be_i64,be_f32};
 use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
-use nom::Err::*;
 
 use parser::produce::*;
 use parser::fetch::*;
@@ -46,10 +45,10 @@ pub fn parse_request_payload<'a>(input:&'a [u8], api_version: i16, api_key: i16)
 
         // Non user-facing control APIs
         // Given proust topology, implementing all of them may not be necessary
-        4  => Error(Code(ErrorKind::Custom(InputError::NotImplemented.to_int()))), // LeaderAndIsr
-        5  => Error(Code(ErrorKind::Custom(InputError::NotImplemented.to_int()))), // StopReplica
-        6  => Error(Code(ErrorKind::Custom(InputError::NotImplemented.to_int()))), // UpdateMetadata
-        7  => Error(Code(ErrorKind::Custom(InputError::NotImplemented.to_int()))), // ControlledShutdown
+        4  => Error(ErrorKind::Custom(InputError::NotImplemented.to_int())), // LeaderAndIsr
+        5  => Error(ErrorKind::Custom(InputError::NotImplemented.to_int())), // StopReplica
+        6  => Error(ErrorKind::Custom(InputError::NotImplemented.to_int())), // UpdateMetadata
+        7  => Error(ErrorKind::Custom(InputError::NotImplemented.to_int())), // ControlledShutdown
 
         8  => {
            let pp = |i| { offset_commit_request(i, api_version) };
@@ -60,10 +59,10 @@ pub fn parse_request_payload<'a>(input:&'a [u8], api_version: i16, api_key: i16)
 
         // Not documented, but those exist in the code
         // Given proust topology, implementing all of them may not be necessary
-        11 => Error(Code(ErrorKind::Custom(InputError::NotImplemented.to_int()))), // JoinGroup
-        12 => Error(Code(ErrorKind::Custom(InputError::NotImplemented.to_int()))), // Heartbeat
+        11 => Error(ErrorKind::Custom(InputError::NotImplemented.to_int())), // JoinGroup
+        12 => Error(ErrorKind::Custom(InputError::NotImplemented.to_int())), // Heartbeat
 
-        _  => Error(Code(ErrorKind::Custom(InputError::ParserError.to_int())))
+        _  => Error(ErrorKind::Custom(InputError::ParserError.to_int()))
     }
 }
 
@@ -74,7 +73,7 @@ pub fn request_message_with_length<'a>(input:&'a [u8]) -> IResult<&'a [u8], Requ
         if size >= 0 {
           take!(i, size as usize)
         } else {
-          Error(Code(ErrorKind::Custom(InputError::InvalidRequestSize.to_int())))
+          Error(ErrorKind::Custom(InputError::InvalidRequestSize.to_int()))
         }
       };
       flat_map!(i, request_bytes, |rb| {
@@ -87,21 +86,22 @@ pub fn request_message_with_length<'a>(input:&'a [u8]) -> IResult<&'a [u8], Requ
 }
 
 pub fn request_message<'a>(input:&'a [u8]) -> IResult<&'a [u8], RequestMessage<'a>> {
-  chain!(
+  do_parse!(
     input,
-    key: be_i16 ~
-    version: be_i16 ~
-    correlation_id: be_i32 ~
-    client_id: kafka_string ~
-    payload: apply!(parse_request_payload, version, key) ~
-    eof, || {
-        RequestMessage {
-            api_version: version,
-            correlation_id: correlation_id,
-            client_id: client_id,
-            request_payload: payload
-        }
-    }
+    key: be_i16 >>
+    api_version: be_i16 >>
+    correlation_id: be_i32 >>
+    client_id: kafka_string >>
+    request_payload: apply!(parse_request_payload, api_version, key) >>
+    eof!() >>
+    (
+      RequestMessage {
+        api_version,
+        correlation_id,
+        client_id,
+        request_payload,
+      }
+    )
   )
 }
 
@@ -110,8 +110,6 @@ mod tests {
   use super::*;
   use nom::*;
   use nom::IResult::*;
-
-  use nom::Err::*;
 
   use parser::errors::*;
 
@@ -148,7 +146,7 @@ mod tests {
       ];
       let result = request_message_with_length(input);
 
-      assert_eq!(result, Error(Code(ErrorKind::Custom(InputError::InvalidRequestSize.to_int()))));
+      assert_eq!(result, Error(ErrorKind::Custom(InputError::InvalidRequestSize.to_int())));
   }
 
   #[test]

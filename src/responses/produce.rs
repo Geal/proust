@@ -7,7 +7,6 @@ use parser::message::*;
 use nom::{HexDisplay,Needed,IResult,FileProducer, be_i16, be_i32};
 use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
-use nom::Err::*;
 
 use responses::primitive::*;
 

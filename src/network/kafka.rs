@@ -1,40 +1,26 @@
-use std::thread::{self,Thread,Builder};
-use std::string::String;
-use std::sync::mpsc::{channel,Receiver};
-use std::collections::HashMap;
-
-use std::str;
-use mio::tcp::*;
+use mio::net::TcpStream;
 use mio::*;
-use mio::buf::{RingBuf,ByteBuf,MutByteBuf,SliceBuf,MutSliceBuf};
-use util::monitor;
-use storage::{self,storage};
-use nom::{IResult,HexDisplay};
-use network::handler::*;
+use bytes::{BytesMut, BufMut};
+use nom::IResult;
+use nom::HexDisplay;
 
+use std::error::Error;
+use std::thread;
+
+use network::handler::*;
+use network::handler::Client as ClientTrait;
 use parser::request::request_message;
 use responses::response::ser_response_message;
 use proust::handle_request;
 
-const SERVER: Token = Token(0);
-
 struct Client {
-  network_state: NetworkState
+  session: Session
 }
 
-pub struct ListenerMessage {
-  a: u8
-}
-
-pub struct Listener {
-  t: Thread,
-  rx: Receiver<u8>
-}
-
-impl NetworkClient for Client {
-  fn new(stream: NonBlock<TcpStream>, index: usize) -> Client {
+impl ClientTrait for Client {
+  fn new(stream: TcpStream, index: usize) -> Client {
     Client{
-      network_state: NetworkState {
+      session: Session {
         socket: stream,
         state: ClientState::Normal,
         token: index,
@@ -43,19 +29,12 @@ impl NetworkClient for Client {
     }
   }
 
-  fn network_state(&mut self) -> &mut NetworkState {
-    &mut self.network_state
+  fn session(&mut self) -> &mut Session {
+    &mut self.session
   }
 
-  fn handle_message(&mut self, buffer: &mut ByteBuf) ->ClientErr {
-    let size = buffer.remaining();
-    let mut res: Vec<u8> = Vec::with_capacity(size);
-    unsafe {
-      res.set_len(size);
-    }
-    buffer.read_slice(&mut res[..]);
-
-    let parsed_request_message = request_message(&res[..]);
+  fn handle_message(&mut self, buffer: &mut [u8]) -> ClientErr {
+    let parsed_request_message = request_message(&buffer[..]);
     if let IResult::Done(_, req) = parsed_request_message {
       println!("Got request: {:?}", req);
       let response = handle_request(req);
@@ -63,37 +42,26 @@ impl NetworkClient for Client {
         println!("Writing response: {:?}", res);
         let mut v: Vec<u8> = Vec::new();
         ser_response_message(res, &mut v);
-        let write_res = self.write(&v[..]);
+        self.write(&v[..]);
       } else {
         println!("Got request handling error {:?}", response);
       }
     } else {
-      println!("Got request parsing error {:?}\n{}", parsed_request_message, (&res[..]).to_hex(8));
+      println!("Got request parsing error {:?}\n{}", parsed_request_message, (&buffer[..]).to_hex(8));
     }
 
     ClientErr::Continue
   }
 }
 
-pub fn start_listener(address: &str) -> (Sender<Message>,thread::JoinHandle<()>)  {
-  let mut event_loop:EventLoop<ProustHandler<Client>> = EventLoop::new().unwrap();
-  let t2 = event_loop.channel();
+pub fn start_listener(address: String) -> Result<thread::JoinHandle<()>, Box<Error>> {
+  let poll = Poll::new()?;
+
   let jg = thread::spawn(move || {
-    let listener = NonBlock::new(TcpListener::bind("127.0.0.1:9092").unwrap());
-    event_loop.register(&listener, SERVER).unwrap();
-    //let t = storage(&event_loop.channel(), "pouet");
-
-    event_loop.run(&mut ProustHandler {
-      listener: listener,
-      //storage_tx: t,
-      counter: 0,
-      token_index: 1, // 0 is the server socket
-      clients: HashMap::new(),
-      available_tokens: Vec::new()
-    }).unwrap();
-
+    let mut server = Server::<Client>::new(address.parse().unwrap(), poll);
+    server.run();
   });
 
-  (t2, jg)
+  Ok(jg)
 }
 

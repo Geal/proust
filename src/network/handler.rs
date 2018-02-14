@@ -1,70 +1,85 @@
-use mio::tcp::*;
 use mio::*;
-use mio::buf::{ByteBuf,MutByteBuf};
+use mio::net::{TcpListener, TcpStream};
+use mio::unix::UnixReady;
+use bytes::{BytesMut, BufMut};
+use nom::be_u32;
+use nom::IResult::*;
 use std::collections::HashMap;
-use std::io::{self,Read,ErrorKind};
+use std::io::{Read, Write, ErrorKind};
+use std::net::SocketAddr;
 use std::error::Error;
+use responses::metadata::*;
+use responses::response::*;
 
 const SERVER: Token = Token(0);
 
-pub struct NetworkState {
-  pub socket: NonBlock<TcpStream>,
+pub struct Session {
+  pub socket: TcpStream,
   pub state:  ClientState,
   pub token:  usize,
-  pub buffer: Option<MutByteBuf>
+  pub buffer: Option<BytesMut>
 }
 
-pub trait NetworkClient {
-  fn new(stream: NonBlock<TcpStream>, index: usize) -> Self;
-  fn handle_message(&mut self, buffer: &mut ByteBuf) -> ClientErr;
-  fn network_state(&mut self) -> &mut NetworkState;
+#[derive(Debug,Clone)]
+pub enum ClientState {
+  Normal,
+  Await(usize)
+}
 
+pub trait Client {
+
+  fn new(stream: TcpStream, index: usize) -> Self;
+  fn handle_message(&mut self, buffer: &mut [u8]) -> ClientErr;
+  fn session(&mut self) -> &mut Session;
+
+  #[inline]
   fn state(&mut self) -> ClientState {
-    self.network_state().state.clone()
+    self.session().state.clone()
   }
 
+  #[inline]
   fn set_state(&mut self, st: ClientState) {
-    self.network_state().state = st;
+    self.session().state = st;
   }
 
-  fn buffer(&mut self) -> Option<MutByteBuf> {
-    self.network_state().buffer.take()
+  #[inline]
+  fn buffer(&mut self) -> Option<BytesMut> {
+    self.session().buffer.take()
   }
 
-  fn set_buffer(&mut self, buf: MutByteBuf) {
-    self.network_state().buffer = Some(buf);
+  #[inline]
+  fn set_buffer(&mut self, buf: &[u8]) {
+    self.session().buffer = Some(BytesMut::from(buf));
   }
 
-  fn socket(&mut self) -> &mut NonBlock<TcpStream> {
-    &mut self.network_state().socket
+  #[inline]
+  fn socket(&mut self) -> &mut TcpStream {
+    &mut self.session().socket
   }
 
   fn read_size(&mut self) -> ClientResult {
-    let mut size_buf = ByteBuf::mut_with_capacity(4);
+    let mut size_buf: [u8; 4] = [0; 4];
+
     match self.socket().read(&mut size_buf) {
-      Ok(Some(size)) => {
+      Ok(size) => {
         if size != 4 {
           Err(ClientErr::Continue)
-        } else {
-          let mut b = size_buf.flip();
-          let b1 = b.read_byte().unwrap();
-          let b2 = b.read_byte().unwrap();
-          let b3 = b.read_byte().unwrap();
-          let b4 = b.read_byte().unwrap();
-          let sz = ((b1 as u32) << 24) + ((b2 as u32) << 16) + ((b3 as u32) << 8) + b4 as u32;
-          //println!("found size: {}", sz);
-          Ok(sz as usize)
+        }
+        else {
+          match be_u32(&size_buf) {
+            Done(buf, size) => Ok(size as usize),
+            _ => Err(ClientErr::Continue),
+          }
         }
       },
-      Ok(None) => Err(ClientErr::Continue),
       Err(e) => {
         match e.kind() {
           ErrorKind::BrokenPipe => {
-            println!("broken pipe, removing client");
+            error!("broken pipe, removing client");
             Err(ClientErr::ShouldClose)
           },
           _ => {
-            println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind());
+            error!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind());
             Err(ClientErr::Continue)
           }
         }
@@ -72,18 +87,18 @@ pub trait NetworkClient {
     }
   }
 
-  fn read_to_buf(&mut self, buffer: &mut MutByteBuf) -> ClientResult {
+  fn read_to_buf(&mut self, buffer: &mut BytesMut, size: usize) -> ClientResult {
     let mut bytes_read: usize = 0;
+    //FIXME: Understand why self.socket().read(&mut buffer) doesn't work (read nothing)
+    let mut buf: [u8; 84] = [0; 84];
     loop {
-      println!("remaining space: {}", buffer.remaining());
-      match self.socket().read(buffer) {
-        Ok(a) => {
-          if a == None || a == Some(0) {
-            println!("breaking because a == {:?}", a);
+      match self.socket().read(&mut buf) {
+        Ok(just_read) => {
+          if just_read == 0 {
+            println!("breaking because just_read == {}", just_read);
             break;
           }
-          println!("Ok({:?})", a);
-          if let Some(just_read) = a {
+          else {
             bytes_read += just_read;
           }
         },
@@ -93,6 +108,9 @@ pub trait NetworkClient {
               println!("broken pipe, removing client");
               return Err(ClientErr::ShouldClose)
             },
+            ErrorKind::WouldBlock => {
+              break;
+            },
             _ => {
               println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind());
               return Err(ClientErr::Continue)
@@ -101,24 +119,26 @@ pub trait NetworkClient {
         }
       }
     }
+
+    buffer.put_slice(&buf[..size]);
     Ok(bytes_read)
   }
 
   fn write(&mut self, msg: &[u8]) -> ClientResult {
-    match self.socket().write_slice(msg) {
-      Ok(Some(o))  => {
-        println!("sent message: {:?}", o);
-        Ok(o)
-      },
-      Ok(None) => Err(ClientErr::Continue),
+    match self.socket().write_all(msg) {
+      Ok(_)  => Ok(msg.len()),
       Err(e) => {
         match e.kind() {
+          ErrorKind::Interrupted  => {
+            error!("Interrupted during write message, removing client");
+            Err(ClientErr::Continue)
+          },
           ErrorKind::BrokenPipe => {
-            println!("broken pipe, removing client");
+            error!("broken pipe, removing client");
             Err(ClientErr::ShouldClose)
           },
           _ => {
-            println!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind());
+            error!("error writing: {:?} | {:?} | {:?} | {:?}", e, e.description(), e.cause(), e.kind());
             Err(ClientErr::Continue)
           }
         }
@@ -134,12 +154,6 @@ pub enum Message {
   Close(usize)
 }
 
-#[derive(Debug,Clone)]
-pub enum ClientState {
-  Normal,
-  Await(usize)
-}
-
 #[derive(Debug)]
 pub enum ClientErr {
   Continue,
@@ -148,89 +162,53 @@ pub enum ClientErr {
 
 pub type ClientResult = Result<usize, ClientErr>;
 
-pub struct ProustHandler<Client: NetworkClient> {
-  pub listener:    NonBlock<TcpListener>,
-  //pub storage_tx : mpsc::Sender<storage::Request>,
-  pub counter:     u8,
-  pub token_index: usize,
-  pub clients:     HashMap<usize, Client>,
+pub struct Server<C: Client> {
+  pub tcp_listener: TcpListener,
+  pub token_index:  usize,
+  pub clients:      HashMap<usize, C>,
+  pub poll:         Poll,
   pub available_tokens: Vec<usize>
 }
 
 
-impl<Client: NetworkClient> ProustHandler<Client> {
-  fn accept(&mut self, event_loop: &mut EventLoop<Self>) {
-    if let Ok(Some(stream)) = self.listener.accept() {
-      let index = self.next_token();
-      println!("got client n°{:?}", index);
-      let token = Token(index);
-      event_loop.register_opt(&stream, token, Interest::all(), PollOpt::edge());
-      self.clients.insert(index, Client::new(stream, index));
-    } else {
-      println!("invalid connection");
+impl<C: Client> Server<C> {
+
+  pub fn new(addr: SocketAddr, poll: Poll) -> Self {
+    Server {
+      tcp_listener: TcpListener::bind(&addr.into()).unwrap(),
+      token_index: 1,
+      clients: HashMap::new(),
+      poll,
+      available_tokens: Vec::new()
     }
   }
 
-  fn client_read(&mut self, event_loop: &mut EventLoop<Self>, tk: usize) {
-    //println!("client n°{:?} readable", tk);
-    if let Some(mut client) = self.clients.get_mut(&tk) {
+  pub fn run(&mut self) {
+    let mut events = Events::with_capacity(1024);
 
-      match client.state() {
-        ClientState::Normal => {
-          //println!("state normal");
-          match client.read_size() {
-            Ok(size) => {
-              let mut buffer = ByteBuf::mut_with_capacity(size);
+    self.poll.register(&self.tcp_listener, SERVER, Ready::readable(), PollOpt::edge()).unwrap();
 
-              let capacity = buffer.remaining();  // actual buffer capacity may be higher
-              //println!("capacity: {}", capacity);
-              if let Err(ClientErr::ShouldClose) = client.read_to_buf(&mut buffer) {
-                event_loop.channel().send(Message::Close(tk));
-              }
+    'main: loop {
+      self.poll.poll(&mut events, None).unwrap();
 
-              if capacity - buffer.remaining() < size {
-                //println!("read {} bytes", capacity - buffer.remaining());
-                //client.state = ClientState::Await(size - (capacity - buffer.remaining()));
-                client.set_state(ClientState::Await(size - (capacity - buffer.remaining())));
-                //client.buffer = Some(buffer);
-                client.set_buffer(buffer);
-              } else {
-                //println!("got enough bytes: {}", capacity - buffer.remaining());
-                let mut text = String::new();
-                let mut buf = buffer.flip();
-                if let ClientErr::ShouldClose = client.handle_message(&mut buf) {
-                  event_loop.channel().send(Message::Close(tk));
-                }
-              }
-            },
-            Err(ClientErr::ShouldClose) => {
-              println!("should close");
-              event_loop.channel().send(Message::Close(tk));
-            },
-            a => {
-              println!("other error: {:?}", a);
+      for event in events.iter() {
+        match event.token() {
+          SERVER => {
+            self.accept();
+          },
+          Token(t) => {
+            let kind = event.readiness();
+
+            if UnixReady::from(kind).is_hup() {
+              self.close(t);
             }
-          }
-        },
-        ClientState::Await(sz) => {
-          println!("awaits {} bytes", sz);
-          //let mut buffer = client.buffer.take().unwrap();
-          let mut buffer = client.buffer().unwrap();
-          let capacity = buffer.remaining();
 
-          if let Err(ClientErr::ShouldClose) = client.read_to_buf(&mut buffer) {
-            event_loop.channel().send(Message::Close(tk));
-          }
-          if capacity - buffer.remaining() < sz {
-            //client.state  = ClientState::Await(sz - (capacity - buffer.remaining()));
-            client.set_state(ClientState::Await(sz - (capacity - buffer.remaining())));
-            //client.buffer = Some(buffer);
-            client.set_buffer(buffer);
-          } else {
-            let mut text = String::new();
-            let mut buf = buffer.flip();
-            if let ClientErr::ShouldClose = client.handle_message(&mut buf) {
-              event_loop.channel().send(Message::Close(tk));
+            if UnixReady::from(kind).is_writable() {
+              self.client_write(t);
+            }
+
+            if UnixReady::from(kind).is_readable() {
+              self.client_read(t);
             }
           }
         }
@@ -238,18 +216,24 @@ impl<Client: NetworkClient> ProustHandler<Client> {
     }
   }
 
-  fn client_write(&mut self, event_loop: &mut EventLoop<Self>, tk: usize) {
-    //println!("client n°{:?} readable", tk);
-    if let Some(mut client) = self.clients.get_mut(&tk) {
-      let s = b"";
-      client.write(s);
+  fn accept(&mut self) {
+    if let Ok((stream, addr)) = self.tcp_listener.accept() {
+      let index = self.next_token();
+      info!("got client n°{:?}", index);
+      let token = Token(index);
+
+      self.poll.register(&stream, token, Ready::all(), PollOpt::edge());
+
+      self.clients.insert(index, Client::new(stream, index));
+    }
+    else {
+      error!("Invalid connection");
     }
   }
 
-
   fn next_token(&mut self) -> usize {
     match self.available_tokens.pop() {
-      None        => {
+      None => {
         let index = self.token_index;
         self.token_index += 1;
         index
@@ -260,56 +244,86 @@ impl<Client: NetworkClient> ProustHandler<Client> {
     }
   }
 
+  fn client_read(&mut self, tk: usize) {
+    let mut error = false;
+
+    if let Some(client) = self.clients.get_mut(&tk) {
+      match client.state() {
+        ClientState::Normal => {
+          match client.read_size() {
+            Ok(size) => {
+              let mut buffer = BytesMut::with_capacity(size);
+              let capacity = buffer.remaining_mut();  // actual buffer capacity may be higher
+              if let Err(ClientErr::ShouldClose) = client.read_to_buf(&mut buffer, size) {
+                error = true;
+              }
+
+              if capacity - buffer.remaining_mut() < size {
+                client.set_state(ClientState::Await(size - (capacity - buffer.remaining_mut())));
+                client.set_buffer(&buffer);
+              }
+              else {
+                if let ClientErr::ShouldClose = client.handle_message(&mut buffer) {
+                  error = true;
+                }
+              }
+            },
+            Err(ClientErr::ShouldClose) => {
+              println!("should close");
+              error = true;
+            },
+            a => {
+              println!("other error: {:?}", a);
+            }
+          }
+        },
+        ClientState::Await(sz) => {
+          println!("awaits {} bytes", sz);
+          let mut buffer = client.buffer().unwrap();
+          let capacity = buffer.remaining_mut();
+
+          if let Err(ClientErr::ShouldClose) = client.read_to_buf(&mut buffer, sz) {
+            error = true;
+          }
+          if capacity - buffer.remaining_mut() < sz {
+            client.set_state(ClientState::Await(sz - (capacity - buffer.remaining_mut())));
+            client.set_buffer(&buffer);
+          }
+          else {
+            if let ClientErr::ShouldClose = client.handle_message(&mut buffer) {
+              error = true;
+            }
+          }
+        },
+      };
+    }
+
+    // Here to fix "multiple mutable borrows occurs" if we call self.close() directly in
+    // the match above.
+    if error {
+      self.close(tk);
+    }
+  }
+
+  fn client_write(&mut self, token: usize) {
+    if let Some(client) = self.clients.get_mut(&token) {
+      match client.state() {
+        ClientState::Normal => {
+          //TODO: Look if we have something to write.
+        },
+        ClientState::Await(_) => {
+          // Do nothing, we are looking to read
+        },
+      }
+    }
+  }
+
   fn close(&mut self, token: usize) {
     self.clients.remove(&token);
     self.available_tokens.push(token);
-  }
-}
 
-impl<Client:NetworkClient> Handler for ProustHandler<Client> {
-  type Timeout = ();
-  type Message = Message;
-
-  fn readable(&mut self, event_loop: &mut EventLoop<Self>, token: Token, _: ReadHint) {
-    //println!("readable");
-    match token {
-      SERVER => {
-        self.accept(event_loop);
-      },
-      Token(tk) => {
-        self.client_read(event_loop, tk);
-      }
+    if let Some(client) = self.clients.get_mut(&token) {
+      self.poll.deregister(client.socket());
     }
-  }
-
-  fn writable(&mut self, event_loop: &mut EventLoop<Self>, token: Token) {
-    match token {
-      SERVER => {
-        println!("server writeable");
-      },
-      Token(tk) => {
-        //println!("client n°{:?} writeable", tk);
-        //self.client_write(event_loop, tk);
-      }
-    }
-  }
-
-  fn notify(&mut self, _reactor: &mut EventLoop<Self>, msg: Message) {
-    println!("notify: {:?}", msg);
-    match msg {
-      Message::Close(token) => {
-        println!("closing client n°{:?}", token);
-        self.close(token)
-      },
-      _                     => println!("unknown message: {:?}", msg)
-    }
-  }
-
-  fn timeout(&mut self, event_loop: &mut EventLoop<Self>, timeout: Self::Timeout) {
-    println!("timeout");
-  }
-
-  fn interrupted(&mut self, event_loop: &mut EventLoop<Self>) {
-    println!("interrupted");
   }
 }

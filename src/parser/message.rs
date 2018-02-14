@@ -3,10 +3,9 @@
 
 use parser::primitive::*;
 
-use nom::{HexDisplay,Needed,IResult,ErrorKind,FileProducer, be_i8, be_i16, be_i32, be_i64, eof};
+use nom::{HexDisplay,Needed,IResult,ErrorKind,FileProducer, be_i8, be_i16, be_i32, be_i64};
 use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
-use nom::Err::*;
 
 use crc::{crc32, Hasher32};
 
@@ -19,15 +18,17 @@ pub struct TopicMessageSet<'a> {
 }
 
 pub fn topic_message_set<'a>(input: &'a [u8]) -> IResult<&'a [u8], TopicMessageSet<'a>> {
-  chain!(
+  do_parse!(
     input,
-    topic_name: kafka_string ~
-    partitions: apply!(kafka_array, partition_message_set), || {
+    topic_name: kafka_string >>
+    partitions: apply!(kafka_array, partition_message_set) >>
+    (
       TopicMessageSet {
-        topic_name: topic_name,
-        partitions: partitions
+        topic_name,
+        partitions,
       }
-    })
+    )
+  )
 }
 
 #[derive(PartialEq, Debug)]
@@ -37,17 +38,18 @@ pub struct PartitionMessageSet<'a> {
 }
 
 pub fn partition_message_set<'a>(input: &'a [u8]) -> IResult<&'a [u8], PartitionMessageSet<'a>> {
-  chain!(
+  do_parse!(
     input,
-    partition: be_i32 ~
-    message_set_size: be_i32 ~
-    message_set: apply!(message_set, message_set_size),
-    || {
+    partition: be_i32 >>
+    message_set_size: be_i32 >>
+    message_set: apply!(message_set, message_set_size) >>
+    (
       PartitionMessageSet {
-        partition: partition,
-        message_set: message_set
+        partition,
+        message_set,
       }
-    })
+    )
+  )
 }
 
 pub type MessageSet<'a> = Vec<OMsMessage<'a>>;
@@ -57,35 +59,29 @@ pub fn message_set<'a>(input: &'a [u8], size: i32) -> IResult<&'a [u8], MessageS
     if size >= 0 {
       take!(i, size as usize)
     } else {
-      Error(Code(ErrorKind::Custom(InputError::InvalidMessageSetSize.to_int())))
+      Error(ErrorKind::Custom(InputError::InvalidMessageSetSize.to_int()))
     }
   };
 
-  flat_map!(input, ms_bytes, |msb| {
-    chain!(
-      msb,
-      messages: message_set_messages,
-      || {
-        messages
-      })
-  })
+  flat_map!(input, ms_bytes, message_set_messages)
 }
 
 pub fn message_set_message<'a>(input: &'a [u8]) -> IResult<&'a [u8], MessageSet<'a>> {
-  chain!(
+  do_parse!(
     input,
-    m: o_ms_message ~
-    rest: message_set_messages, || {
+    m: o_ms_message >>
+    rest: message_set_messages >>
+    ({
       let mut a = vec![m];
       a.extend(rest);
       a
-    }
+    })
   )
 }
 
 pub fn message_set_messages<'a>(input: &'a [u8]) -> IResult<&'a [u8], MessageSet<'a>> {
   alt!(input,
-    eof =>  { |_| vec![] }
+    eof!() =>  { |_| vec![] }
     | message_set_message)
 }
 
@@ -96,16 +92,18 @@ pub struct OMsMessage<'a> {
 }
 
 pub fn o_ms_message<'a>(input: &'a [u8]) -> IResult<&'a [u8], OMsMessage<'a>> {
-  chain!(
+  do_parse!(
     input,
-    offset: be_i64 ~
-    message_size: be_i32 ~
-    message: apply!(message, message_size), || {
+    offset: be_i64 >>
+    message_size: be_i32 >>
+    message: apply!(message, message_size) >>
+    (
       OMsMessage {
-        offset: offset,
-        message: message
+        offset,
+        message,
       }
-    })
+    )
+  )
 }
 
 #[derive(PartialEq, Debug)]
@@ -123,43 +121,47 @@ pub fn message<'a>(input: &'a [u8], size: i32) -> IResult<&'a [u8], Message<'a>>
     if size >= 0 {
       take!(i, sz)
     } else {
-      Error(Code(ErrorKind::Custom(InputError::InvalidMessageSize.to_int())))
+      Error(ErrorKind::Custom(InputError::InvalidMessageSize.to_int()))
     }
   };
 
 
   // TODO make the code more robust / simple
   // Right now the code in `crc_parser` is based on asumptions valid only because `message_bytes`
-  // is before in the parser chain
+  // is before in the parser do_parse
   let crc_parser = |i: &'a [u8]| {
-    // The message_bytes parser has already checked the bounds
+    // The message_bytes parser has already checked the bound>>
     let computed_crc = crc32::checksum_ieee(&input[4..sz]);
     flat_map!(i, be_i32, |given_crc| {
       if given_crc as u32 == computed_crc {
         Done(i, given_crc as u32)
       } else {
-        Error(Code(ErrorKind::Custom(InputError::InvalidMessage.to_int())))
+        Error(ErrorKind::Custom(InputError::InvalidMessage.to_int()))
       }
     })
   };
 
-  flat_map!(input, message_bytes, |mb| {
-    chain!(
-      mb,
-      crc_parser ~
-      magic_byte: be_i8 ~
-      attributes: be_i8 ~
-      key: kafka_bytes ~
-      value: kafka_bytes ~
-      eof, || {
-        Message {
-          magic_byte: magic_byte,
-          attributes: attributes,
-          key: key,
-          value: value
-        }
-      })
-  })
+  flat_map!(input, message_bytes, |mb| foo(mb, &crc_parser))
+}
+
+fn foo<'a>(mb: &'a [u8], crc_parser: &Fn(&'a [u8]) -> IResult<&'a [u8], u32>) -> IResult<&'a [u8], Message<'a>> {
+  do_parse!(
+    mb,
+    crc_parser >>
+    magic_byte: be_i8 >>
+    attributes: be_i8 >>
+    key: kafka_bytes >>
+    value: kafka_bytes >>
+    eof!() >>
+    (
+      Message {
+        magic_byte,
+        attributes,
+        key,
+        value,
+      }
+    )
+  )
 }
 
 #[cfg(test)]
@@ -167,7 +169,6 @@ mod tests {
   use super::*;
   use nom::*;
   use nom::IResult::*;
-  use nom::Err::*;
 
   use parser::errors::*;
 
@@ -390,7 +391,7 @@ mod tests {
       let result = message(input, 12);
 
       // The CRC doesn't include the last two bytes so the check fails
-      assert_eq!(result, Error(Position(ErrorKind::Custom(InputError::InvalidMessage.to_int()), &input[..])));
+      assert_eq!(result, Error(ErrorKind::Custom(InputError::InvalidMessage.to_int())));
   }
 
   #[test]
@@ -404,6 +405,6 @@ mod tests {
       ];
       let result = message(input, 14);
 
-      assert_eq!(result, Error(Position(ErrorKind::Custom(InputError::InvalidMessage.to_int()), &input[..])));
+      assert_eq!(result, Error(ErrorKind::Custom(InputError::InvalidMessage.to_int())));
   }
 }

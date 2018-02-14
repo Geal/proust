@@ -7,7 +7,6 @@ use parser::message::*;
 use nom::{HexDisplay,Needed,IResult,FileProducer, be_i16, be_i32};
 use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
-use nom::Err::*;
 
 #[derive(PartialEq, Debug)]
 pub struct ProduceRequest<'a> {
@@ -17,17 +16,18 @@ pub struct ProduceRequest<'a> {
 }
 
 pub fn produce_request<'a>(input:&'a [u8]) -> IResult<&'a [u8], ProduceRequest<'a>> {
-  chain!(
+  do_parse!(
     input,
-    acks: be_i16 ~
-    timeout: be_i32 ~
-    topics: apply!(kafka_array, topic_message_set), || {
+    required_acks: be_i16 >>
+    timeout: be_i32 >>
+    topics: apply!(kafka_array, topic_message_set) >>
+    (
       ProduceRequest {
-        required_acks: acks,
-        timeout: timeout,
-        topics: topics
+        required_acks,
+        timeout,
+        topics,
       }
-    }
+    )
   )
 }
 

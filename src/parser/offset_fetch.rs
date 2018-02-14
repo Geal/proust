@@ -6,7 +6,6 @@ use parser::primitive::*;
 use nom::{HexDisplay,Needed,IResult,FileProducer, be_i16, be_i32, be_i64};
 use nom::{Consumer,ConsumerState};
 use nom::IResult::*;
-use nom::Err::*;
 
 #[derive(PartialEq,Debug)]
 pub struct OffsetFetchRequest<'a> {
@@ -15,15 +14,16 @@ pub struct OffsetFetchRequest<'a> {
 }
 
 pub fn offset_fetch_request<'a>(input:&'a [u8]) -> IResult<&'a [u8], OffsetFetchRequest<'a>> {
-  chain!(
+  do_parse!(
     input,
-    consumer_group: kafka_string ~
-    topics: apply!(kafka_array, topic_offset_fetch), || {
+    consumer_group: kafka_string >>
+    topics: apply!(kafka_array, topic_offset_fetch) >>
+    (
       OffsetFetchRequest{
-        consumer_group: consumer_group,
-        topics: topics
+        consumer_group,
+        topics,
       }
-    }
+    )
   )
 }
 
@@ -34,15 +34,16 @@ pub struct TopicOffsetFetch<'a> {
 }
 
 pub fn topic_offset_fetch<'a>(input:&'a [u8]) -> IResult<&'a [u8], TopicOffsetFetch<'a>> {
-  chain!(
+  do_parse!(
     input,
-    topic_name: kafka_string ~
-    partitions: apply!(kafka_array, partition_offset_fetch), || {
+    topic_name: kafka_string >>
+    partitions: apply!(kafka_array, partition_offset_fetch) >>
+    (
       TopicOffsetFetch {
-        topic_name: topic_name,
-        partitions: partitions
+        topic_name,
+        partitions,
       }
-    }
+    )
   )
 }
 

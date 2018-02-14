@@ -1,15 +1,20 @@
 [package]
 name = "proust"
 version = "0.0.1"
-authors = ["Clément Delafargue <clement@delafargue.name>", "Geoffroy Couprie <contact@geoffroycouprie.com>"]
+authors = [
+    "Clément Delafargue <clement@delafargue.name>",
+    "Geoffroy Couprie <contact@geoffroycouprie.com>",
+    "Alessio Coltellacci <alessio.coltellacci@clever-cloud.com>"
+]
 
 [dependencies]
-crc = "^0.3.1"
-nom = "~1.0.0"
-mio = "~0.3.0"
-
-[dependencies.mmap]
-git = "https://github.com/Geal/rust-mmap.git"
+crc = "^1.0"
+nom = "^3.0"
+mio = "^0.6"
+log = "^0.3"
+env_logger = "^0.4"
+bytes = "^0.4"
+memmap = "0.6.2"
 
 [features]
 nightly = []
