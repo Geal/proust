@@ -89,10 +89,8 @@ pub trait Client {
 
   fn read_to_buf(&mut self, buffer: &mut BytesMut, size: usize) -> ClientResult {
     let mut bytes_read: usize = 0;
-    //FIXME: Understand why self.socket().read(&mut buffer) doesn't work (read nothing)
-    let mut buf: [u8; 84] = [0; 84];
     loop {
-      match self.socket().read(&mut buf) {
+      match self.socket().read(unsafe { buffer.bytes_mut() }) {
         Ok(just_read) => {
           if just_read == 0 {
             println!("breaking because just_read == {}", just_read);
@@ -100,6 +98,7 @@ pub trait Client {
           }
           else {
             bytes_read += just_read;
+            unsafe { buffer.advance_mut(just_read) };
           }
         },
         Err(e) => {
@@ -120,7 +119,6 @@ pub trait Client {
       }
     }
 
-    buffer.put_slice(&buf[..size]);
     Ok(bytes_read)
   }
 
