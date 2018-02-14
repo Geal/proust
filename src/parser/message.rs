@@ -321,7 +321,7 @@ mod tests {
       ];
       let result = message_set(input, 20);
 
-      assert!(result.is_err());
+      assert_eq!(result, Incomplete(Needed::Size(26)));
   }
 
   #[test]

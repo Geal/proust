@@ -180,11 +180,10 @@ mod tests {
         0x00, 0x00, 0x00, 0x00, // correlation_id = 0
         0x00, 0x00,             // client_id = ""
         0x00, 0x00, 0x00, 0x00, // request_payload = []
-        0x00, 0x00, 0x00, 0x00  // trailing data
       ];
       let result = request_message_with_length(input);
 
-      assert_eq!(result, Incomplete(Needed::Unknown))
+      assert_eq!(result, Incomplete(Needed::Size(18)))
   }
 
   #[test]
@@ -200,6 +199,6 @@ mod tests {
       let result = request_message_with_length(input);
 
       // Will fail trying to parse request_payload's array length (4 bytes)
-      assert_eq!(result, Incomplete(Needed::Size(4)))
+      assert_eq!(result, Incomplete(Needed::Size(14)))
   }
 }
