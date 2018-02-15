@@ -65,7 +65,7 @@ pub trait Client {
         }
         else {
           match be_u32(&size_buf) {
-            Done(buf, size) => Ok(size as usize),
+            Done(_, size) => Ok(size as usize),
             _ => Err(ClientErr::Continue),
           }
         }
