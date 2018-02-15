@@ -15,6 +15,7 @@ log = "^0.3"
 env_logger = "^0.4"
 bytes = "^0.4"
 memmap = "0.6.2"
+slab = "0.4"
 
 [features]
 nightly = []

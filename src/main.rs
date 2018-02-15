@@ -9,6 +9,7 @@ extern crate env_logger;
 #[macro_use]
 extern crate nom;
 extern crate crc;
+extern crate slab;
 
 mod parser;
 mod storage;
