@@ -1,17 +1,15 @@
+use slab::Slab;
 use mio::*;
 use mio::net::{TcpListener, TcpStream};
 use mio::unix::UnixReady;
 use bytes::{BytesMut, BufMut};
 use nom::be_u32;
 use nom::IResult::*;
-use std::collections::HashMap;
 use std::io::{Read, Write, ErrorKind};
 use std::net::SocketAddr;
 use std::error::Error;
-use responses::metadata::*;
-use responses::response::*;
 
-const SERVER: Token = Token(0);
+const SERVER: Token = Token(usize::max_value() - 1);
 
 pub struct Session {
   pub socket: TcpStream,
@@ -67,7 +65,7 @@ pub trait Client {
         }
         else {
           match be_u32(&size_buf) {
-            Done(buf, size) => Ok(size as usize),
+            Done(_, size) => Ok(size as usize),
             _ => Err(ClientErr::Continue),
           }
         }
@@ -162,10 +160,8 @@ pub type ClientResult = Result<usize, ClientErr>;
 
 pub struct Server<C: Client> {
   pub tcp_listener: TcpListener,
-  pub token_index:  usize,
-  pub clients:      HashMap<usize, C>,
+  pub clients:      Slab<C>,
   pub poll:         Poll,
-  pub available_tokens: Vec<usize>
 }
 
 
@@ -174,10 +170,8 @@ impl<C: Client> Server<C> {
   pub fn new(addr: SocketAddr, poll: Poll) -> Self {
     Server {
       tcp_listener: TcpListener::bind(&addr.into()).unwrap(),
-      token_index: 1,
-      clients: HashMap::new(),
+      clients: Slab::new(),
       poll,
-      available_tokens: Vec::new()
     }
   }
 
@@ -215,29 +209,21 @@ impl<C: Client> Server<C> {
   }
 
   fn accept(&mut self) {
-    if let Ok((stream, addr)) = self.tcp_listener.accept() {
-      let index = self.next_token();
-      info!("got client n°{:?}", index);
-      let token = Token(index);
+    match self.tcp_listener.accept() {
+      Ok((stream, addr)) => {
+        let entry = self.clients.vacant_entry();
+        let key = entry.key();
 
-      self.poll.register(&stream, token, Ready::all(), PollOpt::edge());
+        let token = Token(key);
 
-      self.clients.insert(index, Client::new(stream, index));
-    }
-    else {
-      error!("Invalid connection");
-    }
-  }
+        if let Err(e) = self.poll.register(&stream, token, Ready::all(), PollOpt::edge()) {
+          error!("Can't register {}: {}", addr, e);
+        }
 
-  fn next_token(&mut self) -> usize {
-    match self.available_tokens.pop() {
-      None => {
-        let index = self.token_index;
-        self.token_index += 1;
-        index
+        entry.insert(Client::new(stream, key));
       },
-      Some(index) => {
-        index
+      Err(e) => {
+        error!("Invalid connection: {}", e);
       }
     }
   }
@@ -245,7 +231,7 @@ impl<C: Client> Server<C> {
   fn client_read(&mut self, tk: usize) {
     let mut error = false;
 
-    if let Some(client) = self.clients.get_mut(&tk) {
+    if let Some(client) = self.clients.get_mut(tk) {
       match client.state() {
         ClientState::Normal => {
           match client.read_size() {
@@ -304,7 +290,7 @@ impl<C: Client> Server<C> {
   }
 
   fn client_write(&mut self, token: usize) {
-    if let Some(client) = self.clients.get_mut(&token) {
+    if let Some(client) = self.clients.get_mut(token) {
       match client.state() {
         ClientState::Normal => {
           //TODO: Look if we have something to write.
@@ -317,11 +303,17 @@ impl<C: Client> Server<C> {
   }
 
   fn close(&mut self, token: usize) {
-    self.clients.remove(&token);
-    self.available_tokens.push(token);
+    self.clients.remove(token);
 
-    if let Some(client) = self.clients.get_mut(&token) {
-      self.poll.deregister(client.socket());
+    if let Some(client) = self.clients.get_mut(token) {
+      if let Err(e) = self.poll.deregister(client.socket()) {
+        if let Ok(addr) = client.socket().peer_addr() {
+          error!("Can't deregister {}: {}", addr, e);
+        }
+        else {
+          error!("Can't deregister: {}", e);
+        }
+      }
     }
   }
 }
