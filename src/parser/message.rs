@@ -11,6 +11,8 @@ use crc::{crc32, Hasher32};
 
 use parser::errors::*;
 
+const EMPTY_KEY: &[u8] = &[255, 255, 255, 255];
+
 #[derive(PartialEq, Debug)]
 pub struct TopicMessageSet<'a> {
     pub topic_name: KafkaString<'a>,
@@ -141,16 +143,16 @@ pub fn message<'a>(input: &'a [u8], size: i32) -> IResult<&'a [u8], Message<'a>>
     })
   };
 
-  flat_map!(input, message_bytes, |mb| foo(mb, &crc_parser))
+  flat_map!(input, message_bytes, |mb| parse_message(mb, &crc_parser))
 }
 
-fn foo<'a>(mb: &'a [u8], crc_parser: &Fn(&'a [u8]) -> IResult<&'a [u8], u32>) -> IResult<&'a [u8], Message<'a>> {
+fn parse_message<'a>(mb: &'a [u8], crc_parser: &Fn(&'a [u8]) -> IResult<&'a [u8], u32>) -> IResult<&'a [u8], Message<'a>> {
   do_parse!(
     mb,
     crc_parser >>
     magic_byte: be_i8 >>
     attributes: be_i8 >>
-    key: kafka_bytes >>
+    key: alt!(tag!(EMPTY_KEY) | kafka_bytes) >> //FIXME: tag! set the value of max i32 to the key.
     value: kafka_bytes >>
     eof!() >>
     (
@@ -171,6 +173,53 @@ mod tests {
   use nom::IResult::*;
 
   use parser::errors::*;
+
+  #[test]
+  fn parse_message_without_key_tests() {
+    let input = &[
+      0xfd, 0x6e, 0xbd, 0xdb, // crc
+      0x00,                   // magic_byte = 0
+      0x00,                   // attributes = 0
+      0xff, 0xff, 0xff, 0xff, // empty key
+      0x00, 0x00, 0x00, 0x02, // message size = 2
+      0x68, 0x69              // message = 'hi' = (68, 69) in ASCII
+    ];
+
+    let result = message(input, input.len() as i32);
+
+    let expected = Message {
+      magic_byte: 0,
+      attributes: 0,
+      key: &[255, 255, 255, 255],
+      value: "hi".as_bytes(),
+    };
+
+    assert_eq!(result, Done(&[][..], expected))
+  }
+
+    #[test]
+  fn parse_message_with_key_tests() {
+    let input = &[
+      0x74, 0xd1, 0xed, 0x70, // crc
+      0x00,                   // magic_byte = 0
+      0x00,                   // attributes = 0
+      0x00, 0x00, 0x00, 0x01, // key size = 1
+      0x61,                   // key = 'a'
+      0x00, 0x00, 0x00, 0x02, // message size = 2
+      0x68, 0x69              // message = 'hi' = (68, 69) in ASCII
+    ];
+
+    let result = message(input, input.len() as i32);
+
+    let expected = Message {
+      magic_byte: 0,
+      attributes: 0,
+      key: "a".as_bytes(),
+      value: "hi".as_bytes(),
+    };
+
+    assert_eq!(result, Done(&[][..], expected))
+  }
 
   #[test]
   fn topic_message_set_tests() {
