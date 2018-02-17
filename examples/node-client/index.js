@@ -34,9 +34,11 @@ if (process.pid) {
 
 producer.on('ready', () => {
     console.log("Producer is ready");
+    const simpleMessage = 'hi';
+    const keyedMessage = new KeyedMessage('a', 'hi');
 
     producer.send([
-        { topic, messages: 'hi' },
+        { topic, messages: [ simpleMessage, keyedMessage ] },
     ],
     (err, result) => {
         console.log(err || result);
