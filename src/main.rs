@@ -16,6 +16,7 @@ mod network;
 mod responses;
 mod util;
 mod proust;
+mod topic;
 
 fn main() {
   println!("Le peintre original procède à la façon des oculistes.");
