@@ -15,7 +15,7 @@ pub type Request  = u8;
 pub type Response = u8;
 
 pub struct Storage<'a> {
-  filename: &'a str,
+  filename: String,
   file:     File,
   data:     &'a mut [u8],
   size:     usize,
@@ -47,7 +47,7 @@ impl<'a> Storage<'a> {
       println!("msync result: {:?}", mm.flush_async());
       println!("data4:\n{}", str::from_utf8(sl).unwrap());
 
-      Some(Storage{ filename: filename, file: file, data: sl, size: size, map: mm })
+      Some(Storage{ filename: filename.to_string(), file: file, data: sl, size: size, map: mm })
     }
     else {
       None
