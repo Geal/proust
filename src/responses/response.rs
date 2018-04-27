@@ -17,7 +17,7 @@ use responses::fetch::*;
 use responses::offset::*;
 use responses::offset_commit::*;
 use responses::offset_fetch::*;
-
+use responses::api_versions::*;
 
 #[derive(Debug,PartialEq)]
 pub struct ResponseMessage<'a> {
@@ -33,7 +33,8 @@ pub enum ResponsePayload<'a> {
   FetchResponse(FetchResponse<'a>),
   OffsetResponse(OffsetResponse<'a>),
   OffsetCommitResponse(OffsetCommitResponse<'a>),
-  OffsetFetchResponse(OffsetFetchResponse<'a>)
+  OffsetFetchResponse(OffsetFetchResponse<'a>),
+  ApiVersionsResponse(ApiVersionsResponse<'a>),
 }
 
 pub fn ser_response_message(response: ResponseMessage, output: &mut Vec<u8>) -> () {
@@ -47,7 +48,8 @@ pub fn ser_response_message(response: ResponseMessage, output: &mut Vec<u8>) -> 
     ResponsePayload::FetchResponse(p) => ser_fetch_response(p, &mut r_output),
     ResponsePayload::OffsetResponse(p) => ser_offset_response(p, &mut r_output),
     ResponsePayload::OffsetCommitResponse(p) => ser_offset_commit_response(p, &mut r_output),
-    ResponsePayload::OffsetFetchResponse(p) => ser_offset_fetch_response(p, &mut r_output)
+    ResponsePayload::OffsetFetchResponse(p) => ser_offset_fetch_response(p, &mut r_output),
+    ResponsePayload::ApiVersionsResponse(p) => ser_api_versions_response(p, &mut r_output),
   }
 
   ser_i32(r_output.len() as i32, output);
