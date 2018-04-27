@@ -7,3 +7,4 @@ pub mod fetch;
 pub mod offset;
 pub mod offset_commit;
 pub mod offset_fetch;
+pub mod api_versions;
